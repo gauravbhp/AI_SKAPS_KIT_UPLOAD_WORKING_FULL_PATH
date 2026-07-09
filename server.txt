@@ -1,0 +1,11 @@
+for generating certificate cmd:
+
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 3650 -nodes -subj "/CN=192.168.3.48"
+
+for checking port is free or not:
+
+netstat -ano | findstr :5002
+
+for kill process forcefully:
+
+taskkill /PID 1234 /F

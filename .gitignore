@@ -1,0 +1,7 @@
+.venv
+logs/
+error.log
+output.log
+log
+port_status.log
+*.log

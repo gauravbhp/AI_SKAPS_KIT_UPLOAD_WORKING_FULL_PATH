@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="bg-white rounded-lg shadow p-6 max-w-4xl mx-auto">
+    <h2 class="text-2xl font-bold mb-6 text-center">Packing List System</h2>
+    
+    <div class="text-center mb-8">
+        <a href="{% url 'fetch_data' %}" 
+           class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg transition duration-200">
+            Fetch Packing List Data
+        </a>
+    </div>
+    
+    <div class="bg-gray-50 p-4 rounded-lg">
+        <ol class="list-decimal list-inside space-y-1">
+            <li>Click "Fetch Packing List Data" button</li>
+        </ol>
+    </div>
+</div>
+{% endblock %}

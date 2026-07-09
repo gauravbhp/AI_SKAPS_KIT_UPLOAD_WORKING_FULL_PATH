@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Upload</title>
+</head>
+<body>
+    <h1>Test Image Upload</h1>
+    
+    <div>
+        <h3>Test 1: Network Access</h3>
+        <button onclick="testNetwork()">Test Network Access</button>
+        <div id="networkResult"></div>
+    </div>
+    
+    <div>
+        <h3>Test 2: Simple Upload</h3>
+        <input type="file" id="testFile" accept="image/*">
+        <button onclick="uploadTest()">Upload Test Image</button>
+        <div id="uploadResult"></div>
+    </div>
+    
+    <div>
+        <h3>Test 3: Test URL Access</h3>
+        <input type="text" id="testUrl" placeholder="Enter image URL to test" style="width: 400px;">
+        <button onclick="testUrl()">Test URL</button>
+        <div id="urlResult"></div>
+    </div>
+    
+    <script>
+    function testNetwork() {
+        fetch('/test_network/')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('networkResult').innerHTML = 
+                    '<pre>' + data.tests.join('\n') + '</pre>';
+            });
+    }
+    
+    function uploadTest() {
+        const fileInput = document.getElementById('testFile');
+        if (!fileInput.files[0]) {
+            alert('Select a file first');
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64 = e.target.result.split(',')[1];
+            
+            const formData = new FormData();
+            formData.append('customer_name', 'TEST CUSTOMER');
+            formData.append('customer_po', 'TEST-PO-123');
+            formData.append('production_order_code', 'TEST00001');
+            formData.append('production_demand_code', 'TEST00001');
+            formData.append('pallet_number', '1');
+            formData.append('box_number', '1');
+            formData.append('element_desc', 'TEST ELEMENT');
+            formData.append('employee_id', 'TEST123');
+            formData.append('element_image', base64);
+            
+            fetch('/upload_element_image/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('uploadResult').innerHTML = 
+                    '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                if (data.status === 'success') {
+                    document.getElementById('testUrl').value = data.image_url;
+                }
+            });
+        };
+        reader.readAsDataURL(fileInput.files[0]);
+    }
+    
+    function testUrl() {
+        const url = document.getElementById('testUrl').value;
+        if (!url) {
+            alert('Enter a URL');
+            return;
+        }
+        
+        fetch(url)
+            .then(response => {
+                document.getElementById('urlResult').innerHTML = 
+                    `Status: ${response.status} ${response.statusText}<br>
+                     Size: ${response.headers.get('content-length') || 'Unknown'} bytes<br>
+                     Type: ${response.headers.get('content-type') || 'Unknown'}`;
+            })
+            .catch(error => {
+                document.getElementById('urlResult').innerHTML = 
+                    `Error: ${error.message}`;
+            });
+    }
+    
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    </script>
+</body>
+</html>

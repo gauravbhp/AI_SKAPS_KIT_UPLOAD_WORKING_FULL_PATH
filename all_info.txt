@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="bg-white rounded-lg shadow p-6">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold">Packing List Details</h2>
+        <a href="{% url 'home' %}" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+            Back to Home
+        </a>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div class="bg-gray-50 p-4 rounded-lg">
+    <h3 class="text-lg font-semibold mb-2 border-b pb-2">Customer Information</h3>
+    <div class="space-y-2">
+        <p><span class="font-medium">Name:</span> {{ customer_data.CustomerName|default:"Not Available" }}</p>
+        <p><span class="font-medium">PO:</span> {{ customer_data.CustomerPO|default:"Not Available" }}</p>
+        <p><span class="font-medium">Code:</span> {{ customer_data.CustomerCode|default:"Not Available" }}</p>
+        <p><span class="font-medium">Order Code:</span> {{ production_order_code }}</p>
+        <p><span class="font-medium">Demand Code:</span> {{ production_demand_code }}</p>
+    </div>
+</div>
+        
+
+<div class="bg-gray-50 p-4 rounded-lg mb-6">
+    <h3 class="text-lg font-semibold mb-4 border-b pb-2">Product Information</h3>
+    
+    <!-- Item Type Card -->
+    <div class="bg-white p-4 rounded-lg shadow-sm mb-4">
+        <h4 class="font-medium text-gray-700 mb-2 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+            </svg>
+            Item Type
+        </h4>
+        <p class="text-gray-900 font-medium px-2 py-1 bg-gray-100 rounded">
+            {% if product_details.ItemType and product_details.ItemType != 'Not Available' %}
+                {{ product_details.ItemType }}
+            {% else %}
+                <span class="text-gray-500 italic">Not specified</span>
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Subcodes Card -->
+    <div class="bg-white p-4 rounded-lg shadow-sm">
+        <h4 class="font-medium text-gray-700 mb-3 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+            </svg>
+            Product Subcodes
+        </h4>
+        
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            <div class="bg-gray-50 p-2 rounded border border-gray-200">
+                <p class="text-xs text-center text-gray-500 mb-1">Subcode 01</p>
+                <p class="text-sm font-medium text-center break-all">{{ product_details.Subcode01|default:"-" }}</p>
+            </div>
+            <div class="bg-gray-50 p-2 rounded border border-gray-200">
+                <p class="text-xs text-center text-gray-500 mb-1">Subcode 02</p>
+                <p class="text-sm font-medium text-center break-all">{{ product_details.Subcode02|default:"-" }}</p>
+            </div>
+            <div class="bg-gray-50 p-2 rounded border border-gray-200">
+                <p class="text-xs text-center text-gray-500 mb-1">Subcode 03</p>
+                <p class="text-sm font-medium text-center break-all">{{ product_details.Subcode03|default:"-" }}</p>
+            </div>
+            <div class="bg-gray-50 p-2 rounded border border-gray-200">
+                <p class="text-xs text-center text-gray-500 mb-1">Subcode 04</p>
+                <p class="text-sm font-medium text-center break-all">{{ product_details.Subcode04|default:"-" }}</p>
+            </div>
+            <div class="bg-gray-50 p-2 rounded border border-gray-200">
+                <p class="text-xs text-center text-gray-500 mb-1">Subcode 05</p>
+                <p class="text-sm font-medium text-center break-all">{{ product_details.Subcode05|default:"-" }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+    </div>
+    
+    <div class="bg-gray-50 p-4 rounded-lg">
+        <h3 class="text-lg font-semibold mb-2 border-b pb-2">Kit Elements</h3>
+        <div class="overflow-x-auto">
+            <div class="max-h-96 overflow-y-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-100 sticky top-0">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pallet</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Box</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Element Description</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for element in kit_elements %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap">{{ element.PALLETNUMBER }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">{{ element.BOXSEQUENCE }}</td>
+                            <td class="px-6 py-4">{{ element.ELEMENTDESC }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-4 text-sm text-gray-500">
+                Total elements: {{ kit_elements|length }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .max-h-96 {
+        max-height: 24rem;
+    }
+    .max-h-96::-webkit-scrollbar {
+        width: 8px;
+    }
+    .max-h-96::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+    .max-h-96::-webkit-scrollbar-thumb {
+        background: #cbd5e0;
+        border-radius: 4px;
+    }
+    .max-h-96::-webkit-scrollbar-thumb:hover {
+        background: #a0aec0;
+    }
+</style>
+{% endblock %}
