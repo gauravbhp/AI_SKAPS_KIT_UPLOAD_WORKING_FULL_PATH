@@ -9,3 +9,16 @@ netstat -ano | findstr :5002
 for kill process forcefully:
 
 taskkill /PID 1234 /F
+
+
+@echo on
+
+cd /d "E:\kit_upload"
+
+call ".venv\Scripts\activate.bat"
+
+".venv\Scripts\python.exe" serve.py
+
+echo.
+echo Exit Code: %ERRORLEVEL%
+pause

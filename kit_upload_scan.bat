@@ -1,17 +1,32 @@
 @echo off
+setlocal
 
-cd /d "E:\kit_upload"
+:: Name of your NSSM service
+set SERVICE_NAME=GUI_kit_upload_scan_6001
+:: URL to check
+set SITE_URL=https://192.168.3.48:6001
 
-call ".venv\Scripts\activate.bat"
+:loop
+    call ".venv\Scripts\activate.bat"
+    ".venv\Scripts\python.exe" serve.py
 
-:restart
+    echo.
+    echo Exit Code: %ERRORLEVEL%
 
-echo Starting Django Server...
+    :: Health check
+    powershell -Command ^
+      "try { (Invoke-WebRequest -Uri '%SITE_URL%' -UseBasicParsing -TimeoutSec 5).StatusCode } catch { 0 }" > status.txt
 
-".venv\Scripts\python.exe" manage.py runserver_plus --cert-file cert.pem --key-file key.pem 192.168.3.48:6001
+    set /p STATUS=<status.txt
 
-echo Server crashed or stopped. Restarting in 5 seconds...
+    if "%STATUS%"=="200" (
+        echo Site is reachable (%STATUS%)
+    ) else (
+        echo Site unreachable, restarting NSSM service...
+        nssm restart %SERVICE_NAME%
+        timeout /t 10
+    )
 
-timeout /t 5 /nobreak >nul
-
-goto restart
+    :: Wait before next check
+    timeout /t 30
+goto loop

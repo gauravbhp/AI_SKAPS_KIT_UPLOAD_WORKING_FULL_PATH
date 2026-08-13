@@ -544,28 +544,12 @@ def check_image_exists(folder_structure, element_slug, element_desc):
 
 # ---------------------- CHECK HUMAN IMAGE EXISTS ----------------------
 def check_human_image_exists(human_folder_structure, element_desc):
-    """Check if human image exists - checks both network and local paths"""
+    """Check if human image exists - checks network path only (no human_faces folder needed)"""
     
-    # First check in local MEDIA_ROOT/human_faces
-    local_directory = os.path.join(settings.MEDIA_ROOT, human_folder_structure)
-    
-    if os.path.exists(local_directory):
-        try:
-            files = os.listdir(local_directory)
-            for file in files:
-                file_name = os.path.splitext(file)[0]  # remove extension
-                # Check both with and without 'fc_' prefix
-                if file_name == element_desc or file_name == f"fc_{element_desc}":
-                    found_url = f"{settings.MEDIA_URL}{human_folder_structure}/{file}".replace('\\', '/')
-                    print(f"[HUMAN IMAGE FOUND IN LOCAL] {found_url}")
-                    return found_url
-        except Exception as e:
-            print(f"Error checking local human image: {e}")
-    
-    # If not found locally, check network path
+    # Check network path directly
     try:
         network_base = r"\\192.168.4.32\Corekit"
-        # Remove 'human_faces/' prefix for network path
+        # Remove 'human_faces/' prefix if present
         clean_folder = human_folder_structure.replace('human_faces/', '')
         network_directory = os.path.join(network_base, clean_folder)
         
@@ -575,17 +559,8 @@ def check_human_image_exists(human_folder_structure, element_desc):
                 file_name = os.path.splitext(file)[0]
                 # Check both with and without 'fc_' prefix
                 if file_name == element_desc or file_name == f"fc_{element_desc}":
-                    # Return local URL (we'll serve it through Django)
-                    # First ensure it exists in local path, if not, copy it
-                    local_filepath = os.path.join(local_directory, file)
-                    if not os.path.exists(local_filepath):
-                        # Create local directory if it doesn't exist
-                        os.makedirs(local_directory, exist_ok=True)
-                        # Copy from network to local
-                        import shutil
-                        shutil.copy2(os.path.join(network_directory, file), local_filepath)
-                    
-                    found_url = f"{settings.MEDIA_URL}{human_folder_structure}/{file}".replace('\\', '/')
+                    # Return the network path URL
+                    found_url = f"{settings.MEDIA_URL}{clean_folder}/{file}".replace('\\', '/')
                     print(f"[HUMAN IMAGE FOUND IN NETWORK] {found_url}")
                     return found_url
     except Exception as e:
@@ -662,16 +637,13 @@ def fetch_data(request):
                         kit_elements
                     )
                 
-                # Create human_faces folder structure
-                human_folder_structure = f"human_faces/{folder_structure}"
-                
-                # Pass the element_desc directly
-                human_image_url = check_human_image_exists(human_folder_structure, current_ply)
+                # Use folder_structure directly without human_faces prefix
+                human_image_url = check_human_image_exists(folder_structure, current_ply)
                 
                 # Store human image info in element
                 element['human_image_url'] = human_image_url
                 element['has_human_image'] = human_image_url is not None
-                element['human_folder'] = human_folder_structure
+                element['human_folder'] = folder_structure  # Store folder without human_faces prefix
             else:
                 element['human_image_url'] = None
                 element['has_human_image'] = False
@@ -773,12 +745,11 @@ def view_data(request):
                         kit_elements
                     )
                 
-                human_folder_structure = f"human_faces/{folder_structure}"
-                human_image_url = check_human_image_exists(human_folder_structure, current_ply)
+                human_image_url = check_human_image_exists(folder_structure, current_ply)
                 
                 element['human_image_url'] = human_image_url
                 element['has_human_image'] = human_image_url is not None
-                element['human_folder'] = human_folder_structure
+                element['human_folder'] = folder_structure
             else:
                 element['human_image_url'] = None
                 element['has_human_image'] = False
@@ -870,12 +841,11 @@ def view_data(request):
                         kit_elements
                     )
                 
-                human_folder_structure = f"human_faces/{folder_structure}"
-                human_image_url = check_human_image_exists(human_folder_structure, current_ply)
+                human_image_url = check_human_image_exists(folder_structure, current_ply)
                 
                 element['human_image_url'] = human_image_url
                 element['has_human_image'] = human_image_url is not None
-                element['human_folder'] = human_folder_structure
+                element['human_folder'] = folder_structure
             else:
                 element['human_image_url'] = None
                 element['has_human_image'] = False
@@ -1247,7 +1217,7 @@ def upload_element_image(request):
 
             # Save the image
             if is_human_image:
-                # Save to network
+                # Save only to network (no human_faces folder needed)
                 network_base = r"\\192.168.4.32\Corekit"
                 folder_structure_clean = folder_structure.strip('/\\')
                 network_folder = os.path.join(network_base, folder_structure_clean)
@@ -1257,17 +1227,9 @@ def upload_element_image(request):
                 with open(filepath, 'wb') as f:
                     f.write(image_bytes)
                 
-                # Save locally
-                human_faces_path = os.path.join(settings.MEDIA_ROOT, "human_faces", folder_structure)
-                os.makedirs(human_faces_path, exist_ok=True)
-                local_filepath = os.path.join(human_faces_path, filename)
-                
-                with open(local_filepath, 'wb') as f:
-                    f.write(image_bytes)
-                
                 log_simple_message(f"Human image saved to network: {filepath}", "success")
             else:
-                # Save element image
+                # Save element image to local media
                 main_path = os.path.join(settings.MEDIA_ROOT, folder_structure)
                 os.makedirs(main_path, exist_ok=True)
                 filepath = os.path.join(main_path, filename)
@@ -1428,7 +1390,7 @@ def delete_element_image(request):
             deleted_files = []
             failed_files = []
             
-            # Delete element image
+            # Delete element image (local only)
             element_filename = f"{element_desc}.jpeg"
             main_folder = os.path.join(settings.MEDIA_ROOT, folder_structure)
             element_file_path = os.path.join(main_folder, element_filename)
@@ -1440,19 +1402,8 @@ def delete_element_image(request):
                 except Exception as e:
                     failed_files.append(f"Element image: {str(e)}")
             
-            # Delete human image
+            # Delete human image from network only
             human_filename = f"fc_{element_desc}.jpeg"
-            human_local_folder = os.path.join(settings.MEDIA_ROOT, "human_faces", folder_structure)
-            human_local_path = os.path.join(human_local_folder, human_filename)
-            
-            if os.path.exists(human_local_path):
-                try:
-                    os.remove(human_local_path)
-                    deleted_files.append(f"Human image (local): {human_filename}")
-                except Exception as e:
-                    failed_files.append(f"Human image (local): {str(e)}")
-            
-            # Delete from network
             try:
                 network_base = r"\\192.168.4.32\Corekit"
                 folder_structure_clean = folder_structure.strip('/\\')
@@ -1464,6 +1415,7 @@ def delete_element_image(request):
                     deleted_files.append(f"Human image (network): {human_filename}")
             except Exception as e:
                 print(f"Error deleting network human image: {e}")
+                failed_files.append(f"Human image (network): {str(e)}")
             
             # Log deletion time
             deletion_time = datetime.datetime.now()
@@ -1627,4 +1579,205 @@ def view_logs(request):
         'log_files': log_files,
         'total_logs': len(log_files)
     })
+    
+    
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_protect
+from datetime import datetime
+import os, base64
 
+
+# BOX_IMAGE_PATH = (
+#     r"D:\OneDrive - SKAPS INDUSTRIES INDIA PVT.LTD\Jay Vyas's files - Images from Server"
+#     # r"D:\OneDrive - SKAPS INDUSTRIES INDIA PVT.LTD"
+#     # r"\Jay Vyas's files - Extracted"
+#     # r"\Server_Response_Box_img"
+# )
+
+BOX_IMAGE_PATH = os.path.join(settings.MEDIA_ROOT, "box_images")
+
+
+
+
+@require_POST
+@csrf_protect
+def upload_box_capture(request):
+
+    try:
+
+        # --------------------------------------------------
+        # Get image
+        # ---------------------------------------------------
+
+        image_data = request.POST.get("box_image")
+
+        if not image_data:
+
+            return JsonResponse({
+                "status": "error",
+                "message": "No image received."
+            })
+
+
+        # --------------------------------------------------
+        # Get order information
+        # --------------------------------------------------
+
+        production_order_code = (
+            request.POST.get(
+                "production_order_code",
+                "UNKNOWN_ORDER"
+            )
+        )
+
+        production_demand_code = (
+            request.POST.get(
+                "production_demand_code",
+                "UNKNOWN_DEMAND"
+            )
+        )
+
+        pallet_number = (
+            request.POST.get(
+                "pallet_number",
+                "UNKNOWN_PALLET"
+            )
+        )
+
+        box_number = (
+            request.POST.get(
+                "box_number",
+                "UNKNOWN_BOX"
+            )
+        )
+
+
+        # --------------------------------------------------
+        # Create folder if it doesn't exist
+        # --------------------------------------------------
+
+        os.makedirs(
+            BOX_IMAGE_PATH,
+            exist_ok=True
+        )
+
+
+        # --------------------------------------------------
+        # Remove base64 prefix if present
+        # --------------------------------------------------
+
+        if "," in image_data:
+
+            image_data = image_data.split(
+                ",",
+                1
+            )[1]
+
+
+        # --------------------------------------------------
+        # Decode image
+        # --------------------------------------------------
+
+        image_bytes = base64.b64decode(
+            image_data
+        )
+
+
+        # --------------------------------------------------
+        # Create filename
+        # --------------------------------------------------
+
+        timestamp = datetime.now().strftime(
+            "%Y%m%d_%H%M%S_%f"
+        )
+
+
+        filename = (
+            f"{production_order_code}_"
+            f"{production_demand_code}_"
+            f"Pallet_{pallet_number}_"
+            f"Box_{box_number}_"
+            f"{timestamp}.jpg"
+        )
+
+
+        # Remove invalid Windows filename characters
+        invalid_chars = '<>:"/\\|?*'
+
+
+        for char in invalid_chars:
+
+            filename = filename.replace(
+                char,
+                "_"
+            )
+
+
+        # --------------------------------------------------
+        # Full path
+        # --------------------------------------------------
+
+        file_path = os.path.join(
+            BOX_IMAGE_PATH,
+            filename
+        )
+
+
+        # --------------------------------------------------
+        # Save image
+        # --------------------------------------------------
+
+        with open(
+            file_path,
+            "wb"
+        ) as image_file:
+
+            image_file.write(
+                image_bytes
+            )
+
+
+        print(
+            "✅ Box image saved:",
+            file_path
+        )
+
+
+        # --------------------------------------------------
+        # Response
+        # --------------------------------------------------
+
+        return JsonResponse({
+
+            "status": "success",
+
+            "message":
+                "Box image uploaded successfully.",
+
+            "filepath":
+                file_path,
+
+            "filename":
+                filename
+        })
+
+
+    except Exception as e:
+
+        print(
+            "❌ Box image upload error:",
+            str(e)
+        )
+
+
+        return JsonResponse({
+
+            "status": "error",
+
+            "message":
+                str(e)
+
+        }, status=500)
+        
+        

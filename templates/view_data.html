@@ -10,6 +10,23 @@
             <p class="text-gray-600 text-sm md:text-base mt-1">Order: {{ production_order_code }} | Demand: {{ production_demand_code }}</p>
             <p class="text-gray-600 text-sm md:text-base">Pallet: {{ pallet_number }} | Box: {{ box_number }}</p>
         </div>
+        <button type="button"
+                onclick="openBoxCaptureModal()"
+                class="flex items-center bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-3 md:px-4 rounded-lg">
+
+            <svg xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5 mr-2"
+                viewBox="0 0 20 20"
+                fill="currentColor">
+
+                <path fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z"
+                    clip-rule="evenodd" />
+
+            </svg>
+
+            Capture Box
+        </button>
         <a href="{% url 'fetch_data' %}" class="flex items-center bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-3 md:px-4 rounded-lg">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
@@ -292,6 +309,110 @@
     <!-- Add plyno if needed in backend -->
     <input type="hidden" name="plyno" value="{{ plyno }}">
 </form>
+
+
+<!-- ========================================================= -->
+<!-- BOX CAPTURE MODAL -->
+<!-- ================================================= -->
+
+<div id="boxCaptureModal"
+     class="fixed inset-0 z-[9999] hidden bg-black/95 backdrop-blur-sm">
+
+    <div class="flex flex-col h-screen w-screen">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between px-4 py-3
+                    bg-gradient-to-r from-green-600 to-emerald-600">
+
+            <h3 class="text-base sm:text-xl font-semibold text-white">
+                Capture Box Image
+            </h3>
+
+            <button type="button"
+                    onclick="closeBoxCaptureModal()"
+                    class="text-white text-3xl leading-none">
+                &times;
+            </button>
+
+        </div>
+
+
+        <!-- Camera -->
+        <div class="flex-1 relative bg-black overflow-hidden">
+
+            <video id="boxCameraFeed"
+                   autoplay
+                   playsinline
+                   class="w-full h-full object-contain bg-black">
+            </video>
+
+
+            <!-- Captured Image -->
+            <canvas id="boxImagePreview"
+                    class="w-full h-full object-contain hidden bg-black">
+            </canvas>
+
+
+            <!-- Flash -->
+            <div id="boxCaptureOverlay"
+                 class="absolute inset-0 bg-white opacity-0
+                        pointer-events-none transition-opacity duration-300">
+            </div>
+
+        </div>
+
+
+        <!-- Buttons -->
+        <div class="flex flex-col sm:flex-row gap-3
+                    justify-center items-center p-4
+                    bg-black">
+
+            <!-- Capture -->
+            <button id="boxCaptureBtn"
+                    type="button"
+                    onclick="captureBoxImage()"
+                    class="w-full sm:w-auto bg-blue-600
+                           hover:bg-blue-700 active:scale-95
+                           transition text-white font-semibold
+                           px-8 py-4 rounded-xl shadow-lg text-lg">
+
+                📸 Capture
+
+            </button>
+
+
+            <!-- Upload -->
+            <button id="boxUploadBtn"
+                    type="button"
+                    onclick="uploadBoxImage()"
+                    class="w-full sm:w-auto bg-green-600
+                           hover:bg-green-700 active:scale-95
+                           transition text-white font-semibold
+                           px-8 py-4 rounded-xl shadow-lg text-lg hidden">
+
+                ⬆ Upload
+
+            </button>
+
+
+            <!-- Retake -->
+            <button id="boxRetakeBtn"
+                    type="button"
+                    onclick="retakeBoxImage()"
+                    class="w-full sm:w-auto bg-yellow-500
+                           hover:bg-yellow-600 active:scale-95
+                           transition text-white font-semibold
+                           px-8 py-4 rounded-xl shadow-lg text-lg hidden">
+
+                🔄 Retake
+
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
 
 <script>
 // Global variables
@@ -1076,6 +1197,486 @@ function showTimingSummary() {
         console.log(`Time to upload start: ${toUpload.toFixed(3)} seconds`);
     }
     console.log("==================================\n");
+}
+
+// ============================================================
+// BOX CAPTURE
+// ============================================================
+
+let boxCameraStream = null;
+let boxImageData = null;
+
+
+// ------------------------------------------------------------
+// OPEN BOX CAMERA
+// ------------------------------------------------------------
+
+async function openBoxCaptureModal() {
+
+    console.log("========== OPEN BOX CAPTURE ==========");
+
+    const modal = document.getElementById("boxCaptureModal");
+    const video = document.getElementById("boxCameraFeed");
+    const preview = document.getElementById("boxImagePreview");
+
+    modal.classList.remove("hidden");
+
+    document.body.style.overflow = "hidden";
+
+    // Reset UI
+    video.classList.remove("hidden");
+    preview.classList.add("hidden");
+
+    document.getElementById("boxCaptureBtn")
+        .classList.remove("hidden");
+
+    document.getElementById("boxUploadBtn")
+        .classList.add("hidden");
+
+    document.getElementById("boxRetakeBtn")
+        .classList.add("hidden");
+
+    boxImageData = null;
+
+    try {
+
+        // Stop previous stream if any
+        if (boxCameraStream) {
+
+            boxCameraStream.getTracks().forEach(track => {
+                track.stop();
+            });
+
+            boxCameraStream = null;
+        }
+
+
+        // Open BACK camera
+        boxCameraStream =
+            await navigator.mediaDevices.getUserMedia({
+
+                video: {
+                    facingMode: {
+                        ideal: "environment"
+                    },
+
+                    width: {
+                        ideal: 1920
+                    },
+
+                    height: {
+                        ideal: 1080
+                    }
+                },
+
+                audio: false
+
+            });
+
+
+        video.srcObject = boxCameraStream;
+
+        await video.play();
+
+        console.log("✅ Box camera started");
+
+        console.log(
+            "Camera resolution:",
+            video.videoWidth,
+            "x",
+            video.videoHeight
+        );
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "❌ Camera error:",
+            error
+        );
+
+        alert(
+            "Could not access camera.\n\n" +
+            "Please allow camera permission."
+        );
+
+        closeBoxCaptureModal();
+    }
+}
+
+
+
+// ------------------------------------------------------------
+// CLOSE BOX CAMERA
+// ------------------------------------------------------------
+
+function closeBoxCaptureModal() {
+
+    console.log("Closing box camera");
+
+    stopBoxCamera();
+
+    document
+        .getElementById("boxCaptureModal")
+        .classList.add("hidden");
+
+    document.body.style.overflow = "auto";
+
+}
+
+
+
+// ------------------------------------------------------------
+// STOP CAMERA
+// ------------------------------------------------------------
+
+function stopBoxCamera() {
+
+    if (boxCameraStream) {
+
+        boxCameraStream
+            .getTracks()
+            .forEach(track => track.stop());
+
+        boxCameraStream = null;
+    }
+
+}
+
+
+
+// ------------------------------------------------------------
+// CAPTURE IMAGE
+// ------------------------------------------------------------
+
+function captureBoxImage() {
+
+    console.log("📸 Capturing box image...");
+
+    const video =
+        document.getElementById("boxCameraFeed");
+
+    const canvas =
+        document.getElementById("boxImagePreview");
+
+    const ctx =
+        canvas.getContext("2d");
+
+
+    if (!video.videoWidth) {
+
+        alert("Camera is not ready yet.");
+
+        return;
+    }
+
+
+    // Flash effect
+    const overlay =
+        document.getElementById("boxCaptureOverlay");
+
+    overlay.classList.add("flash");
+
+    setTimeout(() => {
+
+        overlay.classList.remove("flash");
+
+    }, 300);
+
+
+    // Use actual camera resolution
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+
+    // Draw camera frame
+    ctx.drawImage(
+        video,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+
+    // Convert to JPEG
+    boxImageData =
+        canvas.toDataURL(
+            "image/jpeg",
+            0.90
+        );
+
+
+    // Remove base64 header
+    boxImageData =
+        boxImageData.split(",")[1];
+
+
+    console.log("✅ Box image captured");
+
+
+    // Stop camera
+    stopBoxCamera();
+
+
+    // Show preview
+    video.classList.add("hidden");
+
+    canvas.classList.remove("hidden");
+
+
+    // Buttons
+    document
+        .getElementById("boxCaptureBtn")
+        .classList.add("hidden");
+
+    document
+        .getElementById("boxUploadBtn")
+        .classList.remove("hidden");
+
+    document
+        .getElementById("boxRetakeBtn")
+        .classList.remove("hidden");
+
+}
+
+
+
+// ------------------------------------------------------------
+// RETAKE
+// ------------------------------------------------------------
+
+function retakeBoxImage() {
+
+    console.log("🔄 Retaking box image");
+
+    boxImageData = null;
+
+    document
+        .getElementById("boxImagePreview")
+        .classList.add("hidden");
+
+    document
+        .getElementById("boxCaptureBtn")
+        .classList.remove("hidden");
+
+    document
+        .getElementById("boxUploadBtn")
+        .classList.add("hidden");
+
+    document
+        .getElementById("boxRetakeBtn")
+        .classList.add("hidden");
+
+    openBoxCameraOnly();
+}
+
+
+
+// ------------------------------------------------------------
+// REOPEN CAMERA
+// ------------------------------------------------------------
+
+async function openBoxCameraOnly() {
+
+    const video =
+        document.getElementById("boxCameraFeed");
+
+    video.classList.remove("hidden");
+
+
+    try {
+
+        boxCameraStream =
+            await navigator.mediaDevices.getUserMedia({
+
+                video: {
+                    facingMode: {
+                        ideal: "environment"
+                    },
+
+                    width: {
+                        ideal: 1920
+                    },
+
+                    height: {
+                        ideal: 1080
+                    }
+                },
+
+                audio: false
+
+            });
+
+
+        video.srcObject = boxCameraStream;
+
+        await video.play();
+
+        console.log("✅ Camera restarted");
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+        alert(
+            "Could not restart camera."
+        );
+    }
+
+}
+
+
+
+// ------------------------------------------------------------
+// UPLOAD BOX IMAGE
+// ------------------------------------------------------------
+
+async function uploadBoxImage() {
+
+    console.log(
+        "========== UPLOADING BOX IMAGE =========="
+    );
+
+
+    if (!boxImageData) {
+
+        alert("Please capture an image first.");
+
+        return;
+    }
+
+
+    const uploadButton =
+        document.getElementById("boxUploadBtn");
+
+    uploadButton.disabled = true;
+
+    uploadButton.innerText =
+        "⏳ Uploading...";
+
+
+    try {
+
+        const formData = new FormData();
+
+
+        // Image
+        formData.append(
+            "box_image",
+            boxImageData
+        );
+
+
+        // Order information
+        formData.append(
+            "production_order_code",
+            orderCode
+        );
+
+        formData.append(
+            "production_demand_code",
+            demandCode
+        );
+
+        formData.append(
+            "pallet_number",
+            palletNumber
+        );
+
+        formData.append(
+            "box_number",
+            boxNumber
+        );
+
+        formData.append(
+            "customer_name",
+            customerName
+        );
+
+        formData.append(
+            "customer_po",
+            customerPO
+        );
+
+
+        // CSRF
+        formData.append(
+            "csrfmiddlewaretoken",
+            getCookie("csrftoken")
+        );
+
+
+        const response =
+            await fetch(
+                "/upload_box_capture/",
+                {
+                    method: "POST",
+                    body: formData
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        console.log(
+            "Server response:",
+            data
+        );
+
+
+        if (data.status === "success") {
+
+            alert(
+                "✅ Box image uploaded successfully!\n\n" +
+                "Saved to:\n" +
+                data.filepath
+            );
+
+
+            closeBoxCaptureModal();
+
+
+            // Optional reload
+            location.reload();
+
+        }
+
+        else {
+
+            throw new Error(
+                data.message ||
+                "Upload failed"
+            );
+        }
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "❌ Box image upload failed:",
+            error
+        );
+
+
+        alert(
+            "❌ Upload failed:\n\n" +
+            error.message
+        );
+
+
+        uploadButton.disabled = false;
+
+        uploadButton.innerText =
+            "⬆ Upload";
+    }
+
 }
 
 // Make timing functions available globally

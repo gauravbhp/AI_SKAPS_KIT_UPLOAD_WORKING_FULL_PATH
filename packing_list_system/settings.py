@@ -15,7 +15,12 @@ SECRET_KEY = 'django-insecure-d*63+89(9ic$y15=s@y!1hs@v+)v%_w5pifo6_ex3*470mj)r6
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*','192.168.2.118:8443']
+ALLOWED_HOSTS = [
+    "192.168.3.48",
+    "localhost",
+    "127.0.0.1",
+    '*'
+]
 
 
 # Application definition
@@ -35,7 +40,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    # 'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -126,7 +131,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.2/howto/static-files/
 
 MEDIA_URL = '/media/'
-MEDIA_ROOT =  r'\\192.168.4.32\Corekit'
+# MEDIA_ROOT =  r'\\192.168.4.32\Corekit'
+# MEDIA_ROOT =  r'D:\OneDrive - SKAPS INDUSTRIES INDIA PVT.LTD\Images from Server'
+MEDIA_ROOT =  r'\\DESKTOP-MVOE2RI\Images from Server'
 
 
 UPLOAD_URL = MEDIA_URL + 'upload'
@@ -139,8 +146,11 @@ STATICFILES_DIRS = [
 ]
 
 
-
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CSRF_TRUSTED_ORIGINS = ['https://192.168.3.48:6001','http://localhost:8001','https://192.168.3.48:5666/', "http://192.168.23.129",]
+
+CSRF_COOKIE_SECURE = False

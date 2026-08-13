@@ -11,6 +11,11 @@ urlpatterns = [
     path('upload_element_image/', views.upload_element_image, name='upload_element_image'),
     path('save_timing_log/', views.save_timing_log_endpoint, name='save_timing_log'),
     path('test_logging/', views.test_logging, name='test_logging'),
+    path(
+        "upload_box_capture/",
+        views.upload_box_capture,
+        name="upload_box_capture"
+    ),
     # path('force-overwrite-human-image/', views.force_overwrite_human_image, name='force_overwrite_human_image'),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) 
