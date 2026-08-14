@@ -1,5 +1,5 @@
 import os
-os.add_dll_directory(r'E:\kit_upload\.venv\Lib\site-packages\clidriver\bin')
+os.add_dll_directory(r'E:\tested\kit_upload_version_2\.venv\Lib\site-packages\clidriver\bin')
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -133,7 +133,7 @@ USE_TZ = True
 MEDIA_URL = '/media/'
 # MEDIA_ROOT =  r'\\192.168.4.32\Corekit'
 # MEDIA_ROOT =  r'D:\OneDrive - SKAPS INDUSTRIES INDIA PVT.LTD\Images from Server'
-MEDIA_ROOT =  r'\\DESKTOP-MVOE2RI\Images from Server'
+MEDIA_ROOT =  r"E:\Onedrive_it_intern\OneDrive - SKAPS INDUSTRIES INDIA PVT.LTD\Jay Vyas's files - Images from Server"
 
 
 UPLOAD_URL = MEDIA_URL + 'upload'
