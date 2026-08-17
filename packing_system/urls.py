@@ -16,9 +16,15 @@ urlpatterns = [
         views.upload_box_capture,
         name="upload_box_capture"
     ),
-    path('api/upload-ply-file/', views.upload_ply_file, name='upload_ply_file'),
-    path('api/ply-files-status/', views.get_ply_files_status, name='ply_files_status'),
-    path('api/move-files/', views.move_files_api, name='move_files_api'),
+    
+    # Scheduler management endpoints
+    path('api/scheduler/status/', views.scheduler_status, name='scheduler_status'),
+    path('api/scheduler/trigger-check/', views.trigger_file_check_now, name='trigger_file_check'),
+    path('api/scheduler/update-interval/', views.update_check_interval, name='update_check_interval'),
+    
+    # path('api/upload-ply-file/', views.upload_ply_file, name='upload_ply_file'),
+    # path('api/ply-files-status/', views.get_ply_files_status, name='ply_files_status'),
+    # path('api/move-files/', views.move_files_api, name='move_files_api'),
     # path('force-overwrite-human-image/', views.force_overwrite_human_image, name='force_overwrite_human_image'),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) 

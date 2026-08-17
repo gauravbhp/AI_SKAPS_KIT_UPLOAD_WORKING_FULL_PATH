@@ -133,7 +133,7 @@ USE_TZ = True
 MEDIA_URL = '/media/'
 # MEDIA_ROOT =  r'\\192.168.4.32\Corekit'
 # MEDIA_ROOT =  r'D:\OneDrive - SKAPS INDUSTRIES INDIA PVT.LTD\Images from Server'
-MEDIA_ROOT =  r"E:\Onedrive_it_intern\OneDrive - SKAPS INDUSTRIES INDIA PVT.LTD\Jay Vyas's files - Images from Server"
+MEDIA_ROOT =  r"E:\Onedrive_it_intern\OneDrive - SKAPS INDUSTRIES INDIA PVT.LTD\Jay Vyas's files - Images from Server\box_images"
 
 
 UPLOAD_URL = MEDIA_URL + 'upload'
