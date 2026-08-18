@@ -26,7 +26,49 @@ SOURCE_DIR = r"E:\Onedrive_it_intern\OneDrive - SKAPS INDUSTRIES INDIA PVT.LTD\J
 DESTINATION_BASE = r"\\192.168.4.32\testKit"
 
 # ====================================================================
-# 1. DATABASE QUERY FUNCTIONS (UI BASED)
+# 1. CHECK TXT FILE EXISTS (WITH RECURSIVE SEARCH)
+# ====================================================================
+
+def check_txt_file_exists(element_desc, folder_structure):
+    """
+    Check if txt file exists in destination folder (with fallback recursive search)
+    """
+    dest_base = Path(DESTINATION_BASE)
+    dest_folder = dest_base / folder_structure
+    txt_file_path = dest_folder / f"{element_desc}.txt"
+    
+    print(f"[TXT CHECK] Element: {element_desc}")
+    print(f"[TXT CHECK] Folder Structure: {folder_structure}")
+    print(f"[TXT CHECK] Primary path: {txt_file_path}")
+    
+    # Check primary path
+    if txt_file_path.exists():
+        print(f"[TXT CHECK] ✅ Found at primary path: {txt_file_path}")
+        return True
+    
+    # Check if folder exists and list files
+    if dest_folder.exists():
+        print(f"[TXT CHECK] Folder exists: {dest_folder}")
+        txt_files = list(dest_folder.glob('*.txt'))
+        print(f"[TXT CHECK] TXT files in folder: {[f.name for f in txt_files]}")
+    else:
+        print(f"[TXT CHECK] ❌ Folder does not exist: {dest_folder}")
+    
+    # Check recursively in destination base
+    try:
+        print(f"[TXT CHECK] Searching recursively in: {dest_base}")
+        for file_path in dest_base.rglob(f"{element_desc}.txt"):
+            print(f"[TXT CHECK] ✅ Found at: {file_path}")
+            return True
+    except Exception as e:
+        print(f"[TXT CHECK] Error in recursive search: {e}")
+    
+    print(f"[TXT CHECK] ❌ TXT file not found: {element_desc}")
+    return False
+
+
+# ====================================================================
+# 2. DATABASE QUERY FUNCTIONS (UI BASED)
 # ====================================================================
 
 def fetch_customer_data_from_ui(production_order_code, production_demand_code):
@@ -217,7 +259,6 @@ def fetch_kit_elements_from_ui(production_order_code, production_demand_code, pa
     print(f"[KIT QUERY] Box Sequence: '{box_sequence}'")
     print("=" * 80)
     
-    # IMPORTANT: Use BOXSEQUENCE, not BOXNUMBER
     query = """
     SELECT 
         KE.PALLETNUMBER,
@@ -308,7 +349,7 @@ def fetch_kit_elements_from_ui(production_order_code, production_demand_code, pa
 
 
 # ====================================================================
-# 2. BUILD FOLDER PATH (UI BASED)
+# 3. BUILD FOLDER PATH (UI BASED)
 # ====================================================================
 
 def build_folder_path_from_ui(production_order_code, production_demand_code, pallet_number, box_number):
@@ -316,6 +357,13 @@ def build_folder_path_from_ui(production_order_code, production_demand_code, pal
     Build folder path using UI provided values
     """
     try:
+        print("=" * 60)
+        print("[BUILD FOLDER] Building folder path...")
+        print(f"[BUILD FOLDER] Order: {production_order_code}")
+        print(f"[BUILD FOLDER] Demand: {production_demand_code}")
+        print(f"[BUILD FOLDER] Pallet: {pallet_number}")
+        print(f"[BUILD FOLDER] Box: {box_number}")
+        
         # Step 1: Get customer data
         customer_data = fetch_customer_data_from_ui(production_order_code, production_demand_code)
         
@@ -323,41 +371,51 @@ def build_folder_path_from_ui(production_order_code, production_demand_code, pal
             customer_name = customer_data.get('CustomerName', 'UNKNOWN')
             customer_po = customer_data.get('CustomerPO', 'NONE')
             subcode03 = customer_data.get('Subcode03', '')
-            logger.info(f"✅ Customer: {customer_name}, PO: {customer_po}, Subcode03: {subcode03}")
+            print(f"[BUILD FOLDER] Customer Name: '{customer_name}'")
+            print(f"[BUILD FOLDER] Customer PO: '{customer_po}'")
+            print(f"[BUILD FOLDER] Subcode03: '{subcode03}'")
         else:
             customer_name = 'UNKNOWN'
             customer_po = 'NONE'
             subcode03 = ''
-            logger.warning("⚠️ No customer data found")
+            print("[BUILD FOLDER] ⚠️ No customer data found!")
         
         # Step 2: Get product details for subcode03 if not found
         if not subcode03:
             product_data = fetch_product_details_from_ui(production_order_code, production_demand_code)
             if product_data:
                 subcode03 = product_data.get('Subcode03', '')
-                logger.info(f"✅ Subcode03 from product details: {subcode03}")
+                print(f"[BUILD FOLDER] Subcode03 from product: '{subcode03}'")
         
         # Step 3: Get kit elements for packing sequence
         kit_elements = fetch_kit_elements_from_ui(production_order_code, production_demand_code, pallet_number, box_number)
         
-        packing_sequence = 'PT1'  # Default
+        packing_sequence = 'PT1'
         if kit_elements and len(kit_elements) > 0:
             packing_sequence = kit_elements[0].get('PACKINGSEQUENCE', 'PT1')
             if not packing_sequence or packing_sequence == 'None' or packing_sequence == 'null':
                 packing_sequence = 'PT1'
-            logger.info(f"✅ PackingSequence: {packing_sequence}")
+            print(f"[BUILD FOLDER] PackingSequence: '{packing_sequence}'")
         else:
-            logger.warning("⚠️ No kit elements found, using default packing sequence")
+            print("[BUILD FOLDER] ⚠️ No kit elements found!")
         
-        # Clean values for folder names
+        # Clean values
         customer_slug = re.sub(r'[^\w\s-]', '', customer_name).strip().upper()
         customer_slug = customer_slug.replace(' ', '-').replace('--', '-') if customer_slug else 'UNKNOWN'
+        print(f"[BUILD FOLDER] Customer Slug: '{customer_slug}'")
         
         po_clean = customer_po.upper() if customer_po and customer_po != '-' else 'NONE'
+        print(f"[BUILD FOLDER] PO Clean: '{po_clean}'")
+        
         order_clean = production_order_code.strip().upper()
         demand_clean = production_demand_code.strip().upper()
         pallet_clean = str(pallet_number).strip().upper()
         box_clean = str(box_number).strip().upper()
+        
+        print(f"[BUILD FOLDER] Order Clean: '{order_clean}'")
+        print(f"[BUILD FOLDER] Demand Clean: '{demand_clean}'")
+        print(f"[BUILD FOLDER] Pallet Clean: '{pallet_clean}'")
+        print(f"[BUILD FOLDER] Box Clean: '{box_clean}'")
         
         # Build folder path
         if subcode03 and subcode03 != 'N/A':
@@ -367,25 +425,26 @@ def build_folder_path_from_ui(production_order_code, production_demand_code, pal
             demand_folder = demand_clean
             pallet_folder = f"PALLET_{pallet_clean}"
         
-        # Clean packing sequence for box folder
         box_folder_value = re.sub(r'[^\w\-]', '', packing_sequence).strip()
         if not box_folder_value or box_folder_value == 'None':
             box_folder_value = 'PT1'
         
         folder_path = f"{customer_slug}--{po_clean}/{order_clean}/{demand_folder}/{pallet_folder}/BOX_{box_clean}_{box_folder_value}"
         
-        logger.info(f"✅ Generated folder path: {folder_path}")
+        print(f"[BUILD FOLDER] ✅ Final Folder Path: {folder_path}")
+        print("=" * 60)
+        
         return folder_path
         
     except Exception as e:
-        logger.error(f"❌ Error building folder path: {e}")
+        print(f"[BUILD FOLDER] ❌ Error: {e}")
         import traceback
         traceback.print_exc()
         return None
 
 
 # ====================================================================
-# 3. FETCH DATA VIEW
+# 4. FETCH DATA VIEW
 # ====================================================================
 
 def fetch_data(request):
@@ -395,12 +454,12 @@ def fetch_data(request):
         pallet_number = request.POST.get('pallet_number', '1').strip()
         box_number = request.POST.get('box_number', '1').strip()  # This is BOXSEQUENCE
         
-        logger.info("=" * 60)
-        logger.info(f"[DEBUG] Order Code: '{production_order_code}'")
-        logger.info(f"[DEBUG] Demand Code: '{production_demand_code}'")
-        logger.info(f"[DEBUG] Pallet Number: '{pallet_number}'")
-        logger.info(f"[DEBUG] Box Number (BOXSEQUENCE): '{box_number}'")
-        logger.info("=" * 60)
+        print("=" * 60)
+        print(f"[DEBUG] Order Code: '{production_order_code}'")
+        print(f"[DEBUG] Demand Code: '{production_demand_code}'")
+        print(f"[DEBUG] Pallet Number: '{pallet_number}'")
+        print(f"[DEBUG] Box Number (BOXSEQUENCE): '{box_number}'")
+        print("=" * 60)
         
         if not production_order_code or not production_demand_code:
             context = {
@@ -418,9 +477,9 @@ def fetch_data(request):
             product_details = fetch_product_details_from_ui(production_order_code, production_demand_code)
             kit_elements = fetch_kit_elements_from_ui(production_order_code, production_demand_code, pallet_number, box_number)
             
-            logger.info(f"[DEBUG] Customer Data: {customer_data is not None}")
-            logger.info(f"[DEBUG] Product Details: {product_details is not None}")
-            logger.info(f"[DEBUG] Kit Elements Found: {len(kit_elements) if kit_elements else 0}")
+            print(f"[DEBUG] Customer Data: {customer_data is not None}")
+            print(f"[DEBUG] Product Details: {product_details is not None}")
+            print(f"[DEBUG] Kit Elements Found: {len(kit_elements) if kit_elements else 0}")
             
             # Check if data exists
             if not customer_data and not product_details and not kit_elements:
@@ -442,6 +501,8 @@ def fetch_data(request):
             
             # Build folder path for each element and check TXT file
             for element in kit_elements:
+                element_desc = element.get('ELEMENTDESC', '').strip()
+                
                 folder_structure = build_folder_path_from_ui(
                     production_order_code,
                     production_demand_code,
@@ -451,14 +512,9 @@ def fetch_data(request):
                 
                 if folder_structure:
                     element['folder_structure'] = folder_structure
-                    element_desc = element.get('ELEMENTDESC', '').strip()
                     
-                    # Check TXT file exists in destination
-                    dest_base = Path(DESTINATION_BASE)
-                    dest_folder = dest_base / folder_structure
-                    txt_file_path = dest_folder / f"{element_desc}.txt"
-                    element['txt_file_exists'] = txt_file_path.exists()
-                    logger.info(f"[TXT] {element_desc}: {txt_file_path} -> {element['txt_file_exists']}")
+                    # ========== CHECK TXT FILE EXISTS ==========
+                    element['txt_file_exists'] = check_txt_file_exists(element_desc, folder_structure)
                     
                     # Check image exists
                     main_path = os.path.join(settings.MEDIA_ROOT, folder_structure)
@@ -509,7 +565,7 @@ def fetch_data(request):
             return render(request, 'view_data.html', context)
             
         except Exception as e:
-            logger.error(f"[DEBUG] ❌ Exception: {str(e)}")
+            print(f"[DEBUG] ❌ Exception: {str(e)}")
             import traceback
             traceback.print_exc()
             
@@ -526,7 +582,7 @@ def fetch_data(request):
 
 
 # ====================================================================
-# 4. VIEW DATA (GET Request Support)
+# 5. VIEW DATA (GET Request Support)
 # ====================================================================
 
 def view_data(request):
@@ -547,6 +603,8 @@ def view_data(request):
                 packing_sequence = 'PT1'
         
         for element in kit_elements:
+            element_desc = element.get('ELEMENTDESC', '').strip()
+            
             folder_structure = build_folder_path_from_ui(
                 production_order_code,
                 production_demand_code,
@@ -554,26 +612,25 @@ def view_data(request):
                 box_number
             )
             
-            element['folder_structure'] = folder_structure
-            element_desc = element.get('ELEMENTDESC', '').strip()
-            
-            dest_base = Path(DESTINATION_BASE)
-            dest_folder = dest_base / folder_structure if folder_structure else dest_base
-            txt_file_path = dest_folder / f"{element_desc}.txt"
-            element['txt_file_exists'] = txt_file_path.exists()
-            
-            image_path = os.path.join(settings.MEDIA_ROOT, folder_structure) if folder_structure else ''
-            image_url = None
-            if image_path and os.path.exists(image_path):
-                files = os.listdir(image_path)
-                for file in files:
-                    file_name = os.path.splitext(file)[0]
-                    if file_name == element_desc:
-                        image_url = f"{settings.MEDIA_URL}{folder_structure}/{file}".replace('\\', '/')
-                        break
-            
-            element['image_url'] = image_url
-            element['has_image'] = image_url is not None
+            if folder_structure:
+                element['folder_structure'] = folder_structure
+                
+                # ========== CHECK TXT FILE EXISTS ==========
+                element['txt_file_exists'] = check_txt_file_exists(element_desc, folder_structure)
+                
+                # Check image exists
+                image_path = os.path.join(settings.MEDIA_ROOT, folder_structure)
+                image_url = None
+                if os.path.exists(image_path):
+                    files = os.listdir(image_path)
+                    for file in files:
+                        file_name = os.path.splitext(file)[0]
+                        if file_name == element_desc:
+                            image_url = f"{settings.MEDIA_URL}{folder_structure}/{file}".replace('\\', '/')
+                            break
+                
+                element['image_url'] = image_url
+                element['has_image'] = image_url is not None
 
         display_customer = {
             'CustomerName': customer_data.get('CustomerName', 'Not Available') if customer_data else 'Not Available',
@@ -626,6 +683,8 @@ def view_data(request):
                 packing_sequence = 'PT1'
         
         for element in kit_elements:
+            element_desc = element.get('ELEMENTDESC', '').strip()
+            
             folder_structure = build_folder_path_from_ui(
                 production_order_code,
                 production_demand_code,
@@ -633,26 +692,22 @@ def view_data(request):
                 box_number
             )
             
-            element['folder_structure'] = folder_structure
-            element_desc = element.get('ELEMENTDESC', '').strip()
-            
-            dest_base = Path(DESTINATION_BASE)
-            dest_folder = dest_base / folder_structure if folder_structure else dest_base
-            txt_file_path = dest_folder / f"{element_desc}.txt"
-            element['txt_file_exists'] = txt_file_path.exists()
-            
-            image_path = os.path.join(settings.MEDIA_ROOT, folder_structure) if folder_structure else ''
-            image_url = None
-            if image_path and os.path.exists(image_path):
-                files = os.listdir(image_path)
-                for file in files:
-                    file_name = os.path.splitext(file)[0]
-                    if file_name == element_desc:
-                        image_url = f"{settings.MEDIA_URL}{folder_structure}/{file}".replace('\\', '/')
-                        break
-            
-            element['image_url'] = image_url
-            element['has_image'] = image_url is not None
+            if folder_structure:
+                element['folder_structure'] = folder_structure
+                element['txt_file_exists'] = check_txt_file_exists(element_desc, folder_structure)
+                
+                image_path = os.path.join(settings.MEDIA_ROOT, folder_structure)
+                image_url = None
+                if os.path.exists(image_path):
+                    files = os.listdir(image_path)
+                    for file in files:
+                        file_name = os.path.splitext(file)[0]
+                        if file_name == element_desc:
+                            image_url = f"{settings.MEDIA_URL}{folder_structure}/{file}".replace('\\', '/')
+                            break
+                
+                element['image_url'] = image_url
+                element['has_image'] = image_url is not None
 
         display_customer = {
             'CustomerName': customer_data.get('CustomerName', 'Not Available') if customer_data else 'Not Available',
@@ -691,13 +746,12 @@ def view_data(request):
 
 
 # ====================================================================
-# 5. MOVE TXT FILES (UI Based - Scheduler Compatible)
+# 6. MOVE TXT FILES (UI Based - Scheduler Compatible)
 # ====================================================================
 
 def move_txt_files(production_order_code=None, production_demand_code=None, pallet_number=None, box_number=None):
     """
     Main function to move text files from source to destination
-    Uses UI parameters if provided, otherwise uses values from database
     """
     source_path = Path(SOURCE_DIR)
     dest_base = Path(DESTINATION_BASE)
@@ -750,7 +804,7 @@ def move_txt_files(production_order_code=None, production_demand_code=None, pall
                 prod_order = element_data.get('PRODUCTIONORDERCODE', '').strip()
                 prod_demand = element_data.get('PRODUCTIONDEMANDCODE', '').strip()
                 pallet = element_data.get('PALLETNUMBER', '1')
-                box = element_data.get('BOXSEQUENCE', '1')  # Use BOXSEQUENCE
+                box = element_data.get('BOXSEQUENCE', '1')
                 
                 if not prod_order or not prod_demand:
                     logger.info(f"No order/demand found for '{file_name}'. Skipping.")
@@ -870,7 +924,7 @@ def get_element_data_from_db(element_desc):
 
 
 # ====================================================================
-# 6. ENDPOINT TO MOVE TXT FILES FROM UI
+# 7. ENDPOINT TO MOVE TXT FILES FROM UI
 # ====================================================================
 
 @csrf_exempt
@@ -954,7 +1008,7 @@ def move_txt_files_endpoint(request):
 
 
 # ====================================================================
-# 7. SCHEDULER JOB FUNCTION
+# 8. SCHEDULER JOB FUNCTION
 # ====================================================================
 
 def check_and_process_txt_files():
@@ -974,7 +1028,7 @@ def check_and_process_txt_files():
 
 
 # ====================================================================
-# 8. SCHEDULER MANAGEMENT ENDPOINTS
+# 9. SCHEDULER MANAGEMENT ENDPOINTS
 # ====================================================================
 
 @csrf_exempt
@@ -1056,7 +1110,7 @@ def update_check_interval(request):
 
 
 # ====================================================================
-# 9. UPLOAD ELEMENT IMAGE
+# 10. UPLOAD ELEMENT IMAGE
 # ====================================================================
 
 @csrf_exempt
@@ -1127,7 +1181,7 @@ def upload_element_image(request):
 
 
 # ====================================================================
-# 10. DELETE ELEMENT IMAGE
+# 11. DELETE ELEMENT IMAGE
 # ====================================================================
 
 @csrf_exempt
@@ -1210,7 +1264,7 @@ def delete_element_image(request):
 
 
 # ====================================================================
-# 11. UPLOAD BOX CAPTURE
+# 12. UPLOAD BOX CAPTURE
 # ====================================================================
 
 @csrf_exempt

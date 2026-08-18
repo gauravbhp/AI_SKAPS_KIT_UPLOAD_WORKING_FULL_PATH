@@ -89,8 +89,8 @@
                         <th class="px-4 md:px-6 py-3 text-left text-xs md:text-sm font-medium text-gray-500">Box</th>
                         <th class="px-4 md:px-6 py-3 text-left text-xs md:text-sm font-medium text-gray-500">Description</th>
                         <th class="px-4 md:px-6 py-3 text-left text-xs md:text-sm font-medium text-gray-500">TXT File</th>
-                        <th class="px-4 md:px-6 py-3 text-left text-xs md:text-sm font-medium text-gray-500">Image</th>
-                        <th class="px-4 md:px-6 py-3 text-left text-xs md:text-sm font-medium text-gray-500">Actions</th>
+                        {% comment %} <th class="px-4 md:px-6 py-3 text-left text-xs md:text-sm font-medium text-gray-500">Image</th>
+                        <th class="px-4 md:px-6 py-3 text-left text-xs md:text-sm font-medium text-gray-500">Actions</th> {% endcomment %}
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -116,7 +116,7 @@
                                 </span>
                             {% endif %}
                         </td>
-                        <td class="px-4 py-2">
+                        {% comment %} <td class="px-4 py-2">
                             {% if element.image_url %}
                                 <img src="{{ element.image_url }}" 
                                      alt="Element" 
@@ -139,7 +139,7 @@
                                     Capture
                                 </button>
                             {% endif %}
-                        </td>
+                        </td> {% endcomment %}
                     </tr>
                     {% endfor %}
                 </tbody>
