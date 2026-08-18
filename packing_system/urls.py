@@ -9,8 +9,8 @@ urlpatterns = [
     path('view-data/', views.view_data, name='view_data'),
     path('delete_element_image/', views.delete_element_image, name='delete_element_image'),
     path('upload_element_image/', views.upload_element_image, name='upload_element_image'),
-    path('save_timing_log/', views.save_timing_log_endpoint, name='save_timing_log'),
-    path('test_logging/', views.test_logging, name='test_logging'),
+    # path('save_timing_log/', views.save_timing_log_endpoint, name='save_timing_log'),
+    # path('test_logging/', views.test_logging, name='test_logging'),
     path(
         "upload_box_capture/",
         views.upload_box_capture,

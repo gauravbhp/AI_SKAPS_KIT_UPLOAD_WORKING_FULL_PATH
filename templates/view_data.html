@@ -13,18 +13,9 @@
         <button type="button"
                 onclick="openBoxCaptureModal()"
                 class="flex items-center bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-3 md:px-4 rounded-lg">
-
-            <svg xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 mr-2"
-                viewBox="0 0 20 20"
-                fill="currentColor">
-
-                <path fill-rule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z"
-                    clip-rule="evenodd" />
-
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd" />
             </svg>
-
             Capture Box
         </button>
         <a href="{% url 'fetch_data' %}" class="flex items-center bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-3 md:px-4 rounded-lg">
@@ -82,9 +73,13 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
                 Kit Elements
+                <span class="ml-2 text-sm font-normal text-gray-500">
+                    ({{ kit_elements|length }} found)
+                </span>
             </h3>
         </div>
 
+        {% if kit_elements %}
         <!-- Desktop Table View -->
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
@@ -93,6 +88,7 @@
                         <th class="px-4 md:px-6 py-3 text-left text-xs md:text-sm font-medium text-gray-500">Pallet</th>
                         <th class="px-4 md:px-6 py-3 text-left text-xs md:text-sm font-medium text-gray-500">Box</th>
                         <th class="px-4 md:px-6 py-3 text-left text-xs md:text-sm font-medium text-gray-500">Description</th>
+                        <th class="px-4 md:px-6 py-3 text-left text-xs md:text-sm font-medium text-gray-500">TXT File</th>
                         <th class="px-4 md:px-6 py-3 text-left text-xs md:text-sm font-medium text-gray-500">Image</th>
                         <th class="px-4 md:px-6 py-3 text-left text-xs md:text-sm font-medium text-gray-500">Actions</th>
                     </tr>
@@ -100,44 +96,79 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% for element in kit_elements %}
                     <tr>
-                        <td class="px-4 md:px-6 py-4">{{ element.PALLETNUMBER }}</td>
-                        <td class="px-4 md:px-6 py-4">{{ element.BOXSEQUENCE }}</td>
-                        <td class="px-4 md:px-6 py-4">{{ element.ELEMENTDESC }}</td>
+                        <td class="px-4 md:px-6 py-4">{{ element.PALLETNUMBER|default:"-" }}</td>
+                        <td class="px-4 md:px-6 py-4">{{ element.BOXSEQUENCE|default:"-" }}</td>
+                        <td class="px-4 md:px-6 py-4 font-medium text-gray-800">{{ element.ELEMENTDESC|default:"-" }}</td>
+                        <td class="px-4 md:px-6 py-4">
+                            {% if element.txt_file_exists %}
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                    Exists
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                                    </svg>
+                                    Missing
+                                </span>
+                            {% endif %}
+                        </td>
                         <td class="px-4 py-2">
                             {% if element.image_url %}
                                 <img src="{{ element.image_url }}" 
                                      alt="Element" 
-                                     class="w-16 h-16 object-cover rounded cursor-pointer" 
+                                     class="w-16 h-16 object-cover rounded cursor-pointer border border-gray-200" 
                                      onclick="showImageModal('{{ element.image_url|escapejs }}')"
-                                     onerror="this.onerror=null; this.src=''; this.parentNode.innerHTML='<div class=\'w-16 h-16 bg-gray-100 rounded flex items-center justify-center\'>Error</div>'">
+                                     onerror="this.onerror=null; this.src=''; this.parentNode.innerHTML='<div class=\'w-16 h-16 bg-gray-100 rounded flex items-center justify-center text-xs text-gray-400\'>Error</div>'">
                             {% else %}
-                                <div class="w-16 h-16 bg-gray-100 rounded flex items-center justify-center text-gray-400 text-xs">No Image</div>
+                                <div class="w-16 h-16 bg-gray-100 rounded flex items-center justify-center text-gray-400 text-xs border border-gray-200">No Image</div>
                             {% endif %}
                         </td>
                         <td class="px-4 md:px-6 py-4">
                             {% if element.image_url %}
                                 <button onclick="deleteElementImage('{{ element.image_url|escapejs }}', '{{ element.ELEMENTDESC|escapejs }}', false)" 
-                                        class="text-red-600 hover:text-red-800 px-3 py-1 rounded border border-red-200">
+                                        class="text-red-600 hover:text-red-800 hover:bg-red-50 px-3 py-1 rounded border border-red-200 transition">
                                     Delete
                                 </button>
                             {% else %}
-                                <button onclick="openCameraModal('{{ element.id }}', '{{ element.ELEMENTDESC|escapejs }}')" 
-                                        class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
+                                <button onclick="openCameraModal('{{ forloop.counter }}', '{{ element.ELEMENTDESC|escapejs }}')" 
+                                        class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition">
                                     Capture
                                 </button>
                             {% endif %}
                         </td>
                     </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="5" class="px-6 py-4 text-center text-gray-500">No kit elements found</td>
-                    </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        {% else %}
+        <!-- No kit elements found -->
+        <div class="p-8 text-center">
+            <div class="flex flex-col items-center justify-center">
+                <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p class="text-gray-500 text-lg font-medium">No kit elements found</p>
+                <p class="text-gray-400 text-sm mt-2">Please check your inputs</p>
+                <div class="mt-3 text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
+                    <p>Order: {{ production_order_code }}</p>
+                    <p>Demand: {{ production_demand_code }}</p>
+                    <p>Pallet: {{ pallet_number }}</p>
+                    <p>Box: {{ box_number }}</p>
+                </div>
+                <button onclick="history.back()" class="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition">
+                    Go Back
+                </button>
+            </div>
+        </div>
+        {% endif %}
     </div>
     
+  </div>
 </div>
 
 <!-- Image Modal -->
@@ -150,54 +181,6 @@
         </div>
     </div>
 </div>
-
-<!-- Camera Modal -->
-{% comment %} <div id="cameraModal" class="fixed inset-0 z-50 hidden bg-black bg-opacity-75 p-4">
-    <div class="flex items-center justify-center min-h-screen">
-        <div class="bg-white rounded-lg w-full max-w-4xl">
-            <div class="p-4 border-b flex justify-between items-center">
-                <h3 id="cameraModalTitle" class="text-lg font-semibold">Take Picture</h3>
-                <button onclick="closeCameraModal()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
-            </div>
-            <div class="p-4">
-                <!-- Back Camera Feed (Visible) -->
-                <video id="cameraFeed" autoplay playsinline class="w-full rounded-lg border mb-4" style="background: #000;"></video>
-                
-                <!-- Hidden Front Camera Feed -->
-                <video id="frontCameraFeed"
-                    autoplay
-                    playsinline
-                    style="position:absolute; left:-9999px; width:1px; height:1px;">
-                </video>
-                <canvas id="frontCameraCanvas" style="display: none;"></canvas>
-                
-                <!-- Preview -->
-                <canvas id="imagePreview" class="w-full rounded-lg border hidden" style="background: #000;"></canvas>
-                
-                <!-- Buttons -->
-                <div class="flex justify-center space-x-4 mt-4">
-                     <button id="captureBtn" onclick="captureImage()" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg">
-                        Capture
-                    </button>
-                    {% comment %} <button onclick="switchCamera()" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg">
-                        Switch Camera
-                    </button> {% endcomment %}
-
-
-                    {% comment %} <button id="uploadBtn" onclick="uploadPicture()" class="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg hidden">
-                        Upload
-                    </button>
-                    <button id="retakeBtn" onclick="retakePicture()" class="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-2 rounded-lg hidden">
-                        Retake
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div> {% endcomment %}
-
-
-
-
 
 <!-- Camera Modal - Full Screen Version -->
 <div id="cameraModal"
@@ -280,6 +263,99 @@
     </div>
 </div>
 
+<!-- Box Capture Modal -->
+<div id="boxCaptureModal"
+     class="fixed inset-0 z-50 hidden bg-black/95 backdrop-blur-sm">
+
+    <div class="flex flex-col h-screen w-screen">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between px-4 py-3
+                    bg-gradient-to-r from-green-600 to-emerald-600">
+
+            <h3 class="text-base sm:text-xl font-semibold text-white">
+                Capture Box Image
+            </h3>
+
+            <button type="button"
+                    onclick="closeBoxCaptureModal()"
+                    class="text-white text-3xl leading-none">
+                &times;
+            </button>
+
+        </div>
+
+        <!-- Camera -->
+        <div class="flex-1 relative bg-black overflow-hidden">
+
+            <video id="boxCameraFeed"
+                   autoplay
+                   playsinline
+                   class="w-full h-full object-contain bg-black">
+            </video>
+
+            <!-- Captured Image -->
+            <canvas id="boxImagePreview"
+                    class="w-full h-full object-contain hidden bg-black">
+            </canvas>
+
+            <!-- Flash -->
+            <div id="boxCaptureOverlay"
+                 class="absolute inset-0 bg-white opacity-0
+                        pointer-events-none transition-opacity duration-300">
+            </div>
+
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex flex-col sm:flex-row gap-3
+                    justify-center items-center p-4 bg-gradient-to-t from-black/80 to-transparent flex-shrink-0">
+
+            <!-- Capture -->
+            <button id="boxCaptureBtn"
+                    type="button"
+                    onclick="captureBoxImage()"
+                    class="w-full sm:w-auto bg-blue-600
+                           hover:bg-blue-700 active:scale-95
+                           transition text-white font-semibold
+                           px-8 py-4 rounded-xl shadow-lg text-lg">
+
+                📸 Capture
+
+            </button>
+
+            <!-- Upload -->
+            <button id="boxUploadBtn"
+                    type="button"
+                    onclick="uploadBoxImage()"
+                    class="w-full sm:w-auto bg-green-600
+                           hover:bg-green-700 active:scale-95
+                           transition text-white font-semibold
+                           px-8 py-4 rounded-xl shadow-lg text-lg hidden">
+
+                ⬆ Upload
+
+            </button>
+
+            <!-- Retake -->
+            <button id="boxRetakeBtn"
+                    type="button"
+                    onclick="retakeBoxImage()"
+                    class="w-full sm:w-auto bg-yellow-500
+                           hover:bg-yellow-600 active:scale-95
+                           transition text-white font-semibold
+                           px-8 py-4 rounded-xl shadow-lg text-lg hidden">
+
+                🔄 Retake
+
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
 <!-- Hidden Forms -->
 <form id="uploadForm" method="post" action="{% url 'upload_element_image' %}" style="display: none;">
     {% csrf_token %}
@@ -306,116 +382,28 @@
     <input type="hidden" name="box_number" value="{{ box_number }}">
     <input type="hidden" name="is_human_image" value="true">
     <input type="hidden" id="humanImageDataInput" name="element_image">
-    <!-- Add plyno if needed in backend -->
     <input type="hidden" name="plyno" value="{{ plyno }}">
 </form>
 
-
 <!-- ========================================================= -->
-<!-- BOX CAPTURE MODAL -->
-<!-- ================================================= -->
-
-<div id="boxCaptureModal"
-     class="fixed inset-0 z-[9999] hidden bg-black/95 backdrop-blur-sm">
-
-    <div class="flex flex-col h-screen w-screen">
-
-        <!-- Header -->
-        <div class="flex items-center justify-between px-4 py-3
-                    bg-gradient-to-r from-green-600 to-emerald-600">
-
-            <h3 class="text-base sm:text-xl font-semibold text-white">
-                Capture Box Image
-            </h3>
-
-            <button type="button"
-                    onclick="closeBoxCaptureModal()"
-                    class="text-white text-3xl leading-none">
-                &times;
-            </button>
-
-        </div>
-
-
-        <!-- Camera -->
-        <div class="flex-1 relative bg-black overflow-hidden">
-
-            <video id="boxCameraFeed"
-                   autoplay
-                   playsinline
-                   class="w-full h-full object-contain bg-black">
-            </video>
-
-
-            <!-- Captured Image -->
-            <canvas id="boxImagePreview"
-                    class="w-full h-full object-contain hidden bg-black">
-            </canvas>
-
-
-            <!-- Flash -->
-            <div id="boxCaptureOverlay"
-                 class="absolute inset-0 bg-white opacity-0
-                        pointer-events-none transition-opacity duration-300">
-            </div>
-
-        </div>
-
-
-        <!-- Buttons -->
-        <div class="flex flex-col sm:flex-row gap-3
-                    justify-center items-center p-4 my-10
-                    bg-black">
-
-            <!-- Capture -->
-            <button id="boxCaptureBtn"
-                    type="button"
-                    onclick="captureBoxImage()"
-                    class="w-full sm:w-auto bg-blue-600
-                           hover:bg-blue-700 active:scale-95
-                           transition text-white font-semibold
-                           px-8 py-4 my-5 rounded-xl shadow-lg text-lg">
-
-                📸 Capture
-
-            </button>
-
-
-            <!-- Upload -->
-            <button id="boxUploadBtn"
-                    type="button"
-                    onclick="uploadBoxImage()"
-                    class="w-full sm:w-auto bg-green-600
-                           hover:bg-green-700 active:scale-95
-                           transition text-white font-semibold
-                           px-8 py-4 my-5 rounded-xl shadow-lg text-lg hidden">
-
-                ⬆ Upload
-
-            </button>
-
-
-            <!-- Retake -->
-            <button id="boxRetakeBtn"
-                    type="button"
-                    onclick="retakeBoxImage()"
-                    class="w-full sm:w-auto bg-yellow-500
-                           hover:bg-yellow-600 active:scale-95
-                           transition text-white font-semibold
-                           px-8 py-4 rounded-xl shadow-lg text-lg hidden">
-
-                🔄 Retake
-
-            </button>
-
-        </div>
-
-    </div>
-
-</div>
+<!-- BOX CAPTURE FORM -->
+<!-- ========================================================= -->
+<form id="boxUploadForm" method="post" action="{% url 'upload_box_capture' %}" style="display: none;">
+    {% csrf_token %}
+    <input type="hidden" name="production_order_code" value="{{ production_order_code }}">
+    <input type="hidden" name="production_demand_code" value="{{ production_demand_code }}">
+    <input type="hidden" name="pallet_number" value="{{ pallet_number }}">
+    <input type="hidden" name="box_number" value="{{ box_number }}">
+    <input type="hidden" name="customer_name" value="{{ customer_data.CustomerName }}">
+    <input type="hidden" name="customer_po" value="{{ customer_data.CustomerPO }}">
+    <input type="hidden" id="boxImageDataInput" name="box_image">
+</form>
 
 <script>
-// Global variables
+// ============================================================
+// GLOBAL VARIABLES
+// ============================================================
+
 let backStream = null;
 let frontStream = null;
 let currentElementId = null;
@@ -432,6 +420,10 @@ let backImageCaptureTime = null;
 let frontImageCaptureTime = null;
 let uploadStartTime = null;
 
+// Box capture variables
+let boxCameraStream = null;
+let boxImageData = null;
+
 // Get order info from Django template
 const orderCode = '{{ production_order_code }}';
 const demandCode = '{{ production_demand_code }}';
@@ -441,670 +433,52 @@ const customerName = '{{ customer_data.CustomerName }}';
 const customerPO = '{{ customer_data.CustomerPO }}';
 const folderPathFromServer = '{{ folder_structure }}';
 
-// Function to save timing log directly to network path via server
-async function saveTimingLogToServer(status, additionalData = {}) {
-    const elementDesc = document.getElementById('elementDescInput')?.value || 'Unknown';
-    const uploadCompleteTime = new Date().toISOString();
-    
-    // Calculate durations
-    let totalDuration = null;
-    let backCaptureDuration = null;
-    let frontCaptureDuration = null;
-    let betweenCapturesDuration = null;
-    let uploadDuration = null;
-    
-    if (captureStartTime && uploadCompleteTime) {
-        const start = new Date(captureStartTime);
-        const end = new Date(uploadCompleteTime);
-        totalDuration = ((end - start) / 1000).toFixed(3);
-    }
-    
-    if (captureStartTime && backImageCaptureTime) {
-        const start = new Date(captureStartTime);
-        const back = new Date(backImageCaptureTime);
-        backCaptureDuration = ((back - start) / 1000).toFixed(3);
-    }
-    
-    if (captureStartTime && frontImageCaptureTime) {
-        const start = new Date(captureStartTime);
-        const front = new Date(frontImageCaptureTime);
-        frontCaptureDuration = ((front - start) / 1000).toFixed(3);
-    }
-    
-    if (backImageCaptureTime && frontImageCaptureTime) {
-        const back = new Date(backImageCaptureTime);
-        const front = new Date(frontImageCaptureTime);
-        betweenCapturesDuration = Math.abs((front - back) / 1000).toFixed(3);
-    }
-    
-    if (uploadStartTime && uploadCompleteTime) {
-        const start = new Date(uploadStartTime);
-        const end = new Date(uploadCompleteTime);
-        uploadDuration = ((end - start) / 1000).toFixed(3);
-    }
-    
-    const logData = {
-        element_desc: elementDesc,
-        image_type: additionalData.image_type || (additionalData.is_human ? 'Human Image' : 'Element Image'),
-        status: status,
-        order_code: orderCode,
-        demand_code: demandCode,
-        customer_name: customerName,
-        customer_po: customerPO,
-        pallet_number: palletNumber,
-        box_number: boxNumber,
-        pl_value: additionalData.pl_value || '1',
-        capture_start_time: captureStartTime,
-        back_capture_time: backImageCaptureTime,
-        front_capture_time: frontImageCaptureTime,
-        upload_start_time: uploadStartTime,
-        upload_complete_time: uploadCompleteTime,
-        total_duration: totalDuration,
-        back_capture_duration: backCaptureDuration,
-        front_capture_duration: frontCaptureDuration,
-        between_captures_duration: betweenCapturesDuration,
-        upload_duration: uploadDuration,
-        folder_path: additionalData.folder_path || folderPathFromServer || 'N/A',
-        ip_address: '',
-        error_message: additionalData.error || ''
-    };
-    
-    console.log('📝 Saving timing log to network:', logData);
-    
-    try {
-        const response = await fetch('/save_timing_log/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify(logData)
-        });
-        const data = await response.json();
-        if (data.status === 'success') {
-            console.log('✅ Timing log saved to: \\\\192.168.4.32\\Corekit\\logs\\');
-        } else {
-            console.error('❌ Failed to save timing log:', data.message);
-        }
-    } catch (err) {
-        console.error('❌ Error saving timing log:', err);
-    }
-}
+console.log('========== JAVASCRIPT LOADED ==========');
+console.log('Order Code:', orderCode);
+console.log('Demand Code:', demandCode);
+console.log('Pallet Number:', palletNumber);
+console.log('Box Number:', boxNumber);
+console.log('Customer Name:', customerName);
+console.log('========================================');
 
-// Debug panel updater
-setInterval(() => {
-    const v = document.getElementById('frontCameraFeed');
-    if (!v) return;
-    document.getElementById('frontStatus').innerText = v.srcObject ? "STREAM ON" : "NO STREAM";
-    document.getElementById('frontSize').innerText = v.videoWidth ? v.videoWidth + " x " + v.videoHeight : "0";
-}, 500);
+// ============================================================
+// CSRF TOKEN HELPER
+// ============================================================
 
-setInterval(function() {
-    const frontVideo = document.getElementById('frontCameraFeed');
-    const backVideo = document.getElementById('cameraFeed');
-    
-    if (document.getElementById('debugFrontStatus')) {
-        document.getElementById('debugFrontStatus').textContent = 
-            (frontVideo && frontVideo.srcObject) ? 'Active' : 'Inactive';
-        document.getElementById('debugFrontDims').textContent = 
-            frontVideo && frontVideo.videoWidth ? `${frontVideo.videoWidth}x${frontVideo.videoHeight}` : '-';
-        document.getElementById('debugBackStatus').textContent = 
-            (backVideo && backVideo.srcObject) ? 'Active' : 'Inactive';
-        document.getElementById('debugBackDims').textContent = 
-            backVideo && backVideo.videoWidth ? `${backVideo.videoWidth}x${backVideo.videoHeight}` : '-';
-    }
-}, 500);
-
-// Open camera modal
-function openCameraModal(elementId, elementDesc) {
-    console.log('========== OPENING CAMERA ==========');
-    console.log('Element:', elementDesc);
-    
-    // Record capture start time
-    captureStartTime = new Date().toISOString();
-    backImageCaptureTime = null;
-    frontImageCaptureTime = null;
-    uploadStartTime = null;
-    console.log(`⏱️ Capture started at: ${captureStartTime}`);
-    
-    currentElementId = elementId;
-    document.getElementById('elementIdInput').value = elementId;
-    document.getElementById('elementDescInput').value = elementDesc;
-    document.getElementById('cameraModalTitle').textContent = `Take Picture: ${elementDesc}`;
-    
-    document.getElementById('cameraModal').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-    
-    document.getElementById('cameraFeed').classList.remove('hidden');
-    document.getElementById('frontCameraFeed').classList.add('hidden');
-    document.getElementById('imagePreview').classList.add('hidden');
-    document.getElementById('captureBtn').classList.remove('hidden');
-    document.getElementById('uploadBtn').classList.add('hidden');
-    document.getElementById('retakeBtn').classList.add('hidden');
-    
-    frontCameraReady = false;
-    frontCameraAttempts = 0;
-    faceCaptureInProgress = false;
-    
-    startBackCamera();
-    
-    setTimeout(startFrontCamera, 1000);
-}
-
-// Close camera modal
-function closeCameraModal() {
-    console.log('Closing camera modal');
-    stopAllCameras();
-    document.getElementById('cameraModal').classList.add('hidden');
-    document.body.style.overflow = 'auto';
-    
-    // Save log if cancelled
-    if (captureStartTime && !uploadStartTime) {
-        saveTimingLogToServer('cancelled', { image_type: 'Cancelled before upload' });
-    }
-    
-    captureStartTime = null;
-    backImageCaptureTime = null;
-    frontImageCaptureTime = null;
-}
-
-// Start back camera
-async function startBackCamera() {
-    try {
-        console.log('Starting back camera...');
-        const constraints = {
-            video: {
-                facingMode: 'environment',
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
-            }
-        };
-        
-        backStream = await navigator.mediaDevices.getUserMedia(constraints);
-        const video = document.getElementById('cameraFeed');
-        video.srcObject = backStream;
-        
-        video.onloadedmetadata = () => {
-            video.play()
-                .then(() => {
-                    console.log('✓ Back camera started');
-                    console.log('  Dimensions:', video.videoWidth, 'x', video.videoHeight);
-                })
-                .catch(e => console.error('Error playing back camera:', e));
-        };
-    } catch (err) {
-        console.error('✗ Back camera error:', err);
-        alert('Could not access back camera. Please check permissions.');
-    }
-}
-
-// Start front camera
-async function startFrontCamera() {
-    try {
-        frontStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "user" }
-        });
-
-        const video = document.getElementById('frontCameraFeed');
-        video.classList.add('hidden');
-        video.srcObject = frontStream;
-        await video.play();
-        console.log("✅ FRONT CAMERA STARTED");
-    } catch (err) {
-        console.error("❌ FRONT CAMERA FAILED:", err);
-    }
-}
-
-// Stop all cameras
-function stopAllCameras() {
-    console.log('Stopping all cameras...');
-    if (backStream) {
-        backStream.getTracks().forEach(track => track.stop());
-        backStream = null;
-    }
-    if (frontStream) {
-        frontStream.getTracks().forEach(track => track.stop());
-        frontStream = null;
-    }
-    frontCameraReady = false;
-    frontCameraAttempts = 0;
-    faceCaptureInProgress = false;
-}
-
-// Switch camera
-function switchCamera() {
-    currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
-    console.log('Switching to camera mode:', currentFacingMode);
-    
-    if (backStream) {
-        backStream.getTracks().forEach(track => track.stop());
-    }
-    
-    const constraints = {
-        video: {
-            facingMode: currentFacingMode,
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-        }
-    };
-    
-    navigator.mediaDevices.getUserMedia(constraints)
-        .then(stream => {
-            backStream = stream;
-            document.getElementById('cameraFeed').srcObject = stream;
-        })
-        .catch(err => console.error('Switch camera error:', err));
-}
-
-// Capture image
-// Capture image with flash effect
-async function captureImage() {
-    console.log("📸 STEP 1: Capture BACK image");
-    backImageCaptureTime = new Date().toISOString();
-    console.log(`⏱️ Back image captured at: ${backImageCaptureTime}`);
-    
-    // Add flash effect
-    const overlay = document.getElementById('captureOverlay');
-    overlay.classList.add('flash');
-    setTimeout(() => overlay.classList.remove('flash'), 300);
-    
-    const video = document.getElementById('cameraFeed');
-    const preview = document.getElementById('imagePreview');
-    const ctx = preview.getContext('2d');
-
-    preview.width = video.videoWidth;
-    preview.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
-
-    // Save back image
-    window.backImageData = preview.toDataURL('image/jpeg').split(',')[1];
-
-    // Stop back camera
-    if (backStream) {
-        backStream.getTracks().forEach(track => track.stop());
-    }
-
-    console.log("📸 STEP 2: Starting FRONT camera");
-
-    // Start front camera now
-    await startFrontCamera();
-
-    // Wait for front camera
-    await new Promise(r => setTimeout(r, 800));
-
-    // Capture front
-    await captureFrontImage();
-
-    console.log("📸 STEP 3: Both images captured");
-    
-    const bothCapturedTime = new Date().toISOString();
-    console.log(`⏱️ Both images captured at: ${bothCapturedTime}`);
-    
-    // Show upload button
-    document.getElementById('uploadBtn').classList.remove('hidden');
-    document.getElementById('captureBtn').classList.add('hidden');
-}
-
-// Capture front camera image
-async function captureFrontImage() {
-    const video = document.getElementById('frontCameraFeed');
-    const canvas = document.getElementById('frontCameraCanvas');
-    const ctx = canvas.getContext('2d');
-    document.getElementById('captureBtn').classList.add('hidden');
-    let retries = 0;
-
-    while ((video.videoWidth === 0) && retries < 10) {
-        await new Promise(r => setTimeout(r, 200));
-        retries++;
-    }
-
-    if (!video.videoWidth) {
-        console.error("❌ FRONT STILL NOT READY");
-        return;
-    }
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
-
-    window.frontImageData = canvas.toDataURL('image/jpeg').split(',')[1];
-    frontImageCaptureTime = new Date().toISOString();
-    console.log(`⏱️ Front image captured at: ${frontImageCaptureTime}`);
-
-    console.log("✅ FRONT IMAGE CAPTURED");
-}
-
-// Upload both images with time tracking
-function uploadPicture() {
-    console.log("========== UPLOADING BOTH IMAGES ==========");
-    uploadStartTime = new Date().toISOString();
-    console.log(`⏱️ Upload started at: ${uploadStartTime}`);
-    
-    const elementDesc = document.getElementById('elementDescInput').value;
-
-    const formData1 = new FormData(document.getElementById('uploadForm'));
-    formData1.set("element_image", window.backImageData);
-    formData1.set("is_human_image", "false");
-    formData1.set("capture_start_time", captureStartTime || new Date().toISOString());
-    formData1.set("back_capture_time", backImageCaptureTime || '');
-    formData1.set("front_capture_time", frontImageCaptureTime || '');
-    formData1.set("upload_start_time", uploadStartTime);
-    formData1.set("element_desc", elementDesc);
-
-    const formData2 = new FormData(document.getElementById('humanUploadForm'));
-    formData2.set("element_image", window.frontImageData);
-    formData2.set("is_human_image", "true");
-    formData2.set("element_desc", elementDesc);
-    formData2.set("capture_start_time", captureStartTime || new Date().toISOString());
-    formData2.set("back_capture_time", backImageCaptureTime || '');
-    formData2.set("front_capture_time", frontImageCaptureTime || '');
-    formData2.set("upload_start_time", uploadStartTime);
-
-    Promise.all([
-        fetch("/upload_element_image/", { 
-            method: "POST", 
-            body: formData1,
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken')
-            }
-        }),
-        fetch("/upload_element_image/", { 
-            method: "POST", 
-            body: formData2,
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken')
-            }
-        })
-    ])
-    .then(responses => Promise.all(responses.map(r => r.json())))
-    .then(results => {
-        const uploadCompleteTime = new Date().toISOString();
-        console.log(`⏱️ Upload completed at: ${uploadCompleteTime}`);
-        
-        // Calculate durations
-        let totalDuration = null;
-        let backDuration = null;
-        let frontDuration = null;
-        let betweenDuration = null;
-        
-        if (captureStartTime) {
-            const start = new Date(captureStartTime);
-            const end = new Date(uploadCompleteTime);
-            totalDuration = (end - start) / 1000;
-            console.log(`⏱️ TOTAL DURATION: ${totalDuration.toFixed(3)} seconds`);
-            
-            if (backImageCaptureTime) {
-                const backCapture = new Date(backImageCaptureTime);
-                backDuration = (backCapture - start) / 1000;
-                console.log(`⏱️ Time to back capture: ${backDuration.toFixed(3)} seconds`);
-            }
-            
-            if (frontImageCaptureTime) {
-                const frontCapture = new Date(frontImageCaptureTime);
-                frontDuration = (frontCapture - start) / 1000;
-                console.log(`⏱️ Time to front capture: ${frontDuration.toFixed(3)} seconds`);
-            }
-            
-            if (backImageCaptureTime && frontImageCaptureTime) {
-                const back = new Date(backImageCaptureTime);
-                const front = new Date(frontImageCaptureTime);
-                betweenDuration = Math.abs((front - back) / 1000);
-                console.log(`⏱️ Time between captures: ${betweenDuration.toFixed(3)} seconds`);
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
             }
         }
-        
-        // Save final timing log to network text file
-        saveTimingLogToServer('success', { 
-            image_type: 'Both Images',
-            total_duration: totalDuration?.toFixed(3),
-            back_duration: backDuration?.toFixed(3),
-            front_duration: frontDuration?.toFixed(3),
-            between_duration: betweenDuration?.toFixed(3)
-        });
-        
-        // Display timing summary
-        let timingMessage = "✅ Images uploaded successfully!\n\n";
-        if (captureStartTime && totalDuration) {
-            timingMessage += `⏱️ Total time from capture to upload: ${totalDuration.toFixed(2)} seconds\n`;
-            timingMessage += `📸 Back camera capture: ${backImageCaptureTime ? '✓' : '✗'}\n`;
-            timingMessage += `👤 Front camera capture: ${frontImageCaptureTime ? '✓' : '✗'}\n\n`;
-            timingMessage += `📝 Detailed log saved to:\\\\192.168.4.32\\Corekit\\logs\\`;
-        }
-        
-        alert(timingMessage);
-        
-        // Log summary to console
-        console.log("\n========== UPLOAD SUMMARY ==========");
-        console.log(`Element: ${elementDesc}`);
-        console.log(`Capture Start: ${captureStartTime || 'N/A'}`);
-        console.log(`Back Capture: ${backImageCaptureTime || 'N/A'}`);
-        console.log(`Front Capture: ${frontImageCaptureTime || 'N/A'}`);
-        console.log(`Upload Start: ${uploadStartTime}`);
-        console.log(`Upload Complete: ${uploadCompleteTime}`);
-        if (captureStartTime && totalDuration) {
-            console.log(`⏱️ TOTAL DURATION: ${totalDuration.toFixed(3)} seconds`);
-        }
-        console.log("✅ Timing log saved to: \\\\192.168.4.32\\Corekit\\logs\\");
-        console.log("==================================\n");
-        
-        location.reload();
-    })
-    .catch(err => {
-        console.error("Upload failed:", err);
-        saveTimingLogToServer('failed', { 
-            image_type: 'Upload Failed', 
-            error: err.message 
-        });
-        alert("Upload failed: " + err.message);
-    });
+    }
+    return cookieValue;
 }
 
-// Upload front camera image (individual upload)
-function uploadHumanImage(imageData) {
-    console.log('========== UPLOADING FACE IMAGE ==========');
-    uploadStartTime = new Date().toISOString();
-    console.log(`⏱️ Individual face upload started at: ${uploadStartTime}`);
-    
-    document.getElementById('humanImageDataInput').value = imageData;
-    
-    const form = document.getElementById('humanUploadForm');
-    const formData = new FormData(form);
-    
-    // Add timing information
-    formData.set("capture_start_time", captureStartTime || new Date().toISOString());
-    formData.set("back_capture_time", backImageCaptureTime || '');
-    formData.set("front_capture_time", frontImageCaptureTime || '');
-    formData.set("upload_start_time", uploadStartTime);
-    
-    console.log('Sending face image to server...');
-    
-    fetch(form.action, {
-        method: 'POST',
-        body: formData,
-        headers: {
-            'X-CSRFToken': getCookie('csrftoken')
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        const uploadCompleteTime = new Date().toISOString();
-        console.log(`⏱️ Face upload completed at: ${uploadCompleteTime}`);
-        
-        if (data.status === 'success') {
-            console.log('✅ Face image uploaded successfully!');
-            
-            // Calculate total duration
-            let totalDuration = null;
-            if (captureStartTime) {
-                const start = new Date(captureStartTime);
-                const end = new Date(uploadCompleteTime);
-                totalDuration = (end - start) / 1000;
-                console.log(`⏱️ Total duration: ${totalDuration.toFixed(3)} seconds`);
-            }
-            
-            // Save timing log to network text file
-            saveTimingLogToServer('success', { 
-                image_type: 'Face Image Only',
-                total_duration: totalDuration?.toFixed(3),
-                is_human: true
-            });
-            
-            humanCapturedThisSession = true;
-            isHumanCaptured = true;
-            faceCaptureInProgress = false;
-            
-            // Update debug panel
-            if (document.getElementById('debugFaceStatus')) {
-                document.getElementById('debugFaceStatus').textContent = 'True';
-            }
-            
-            // Show timing message
-            if (totalDuration) {
-                alert(`✅ Face image uploaded!\n⏱️ Total time: ${totalDuration.toFixed(2)} seconds\n📝 Log saved to: \\\\192.168.4.32\\Corekit\\logs\\`);
-            } else {
-                alert('✅ Face image uploaded successfully!\n📝 Timing log saved to network');
-            }
-            
-        } else if (data.status === 'confirm_overwrite') {
-            console.log('Face image exists, automatically overwriting...');
-            forceOverwriteHumanImage(data.filepath, imageData);
-        } else {
-            console.error('❌ Upload failed:', data.message);
-            faceCaptureInProgress = false;
-            saveTimingLogToServer('failed', { 
-                image_type: 'Face Image', 
-                error: data.message,
-                is_human: true
-            });
-            alert('Upload failed: ' + data.message);
-        }
-    })
-    .catch(err => {
-        console.error('❌ Upload error:', err);
-        faceCaptureInProgress = false;
-        saveTimingLogToServer('failed', { 
-            image_type: 'Face Image', 
-            error: err.message,
-            is_human: true
-        });
-        alert('Upload error: ' + err.message);
-    });
-}
+// ============================================================
+// IMAGE MODAL FUNCTIONS
+// ============================================================
 
-// Force overwrite human image
-function forceOverwriteHumanImage(filepath, imageData) {
-    console.log('========== FORCE OVERWRITING FACE ==========');
-    const overwriteTime = new Date().toISOString();
-    console.log(`⏱️ Force overwrite started at: ${overwriteTime}`);
-    
-    const formData = new FormData();
-    formData.append('customer_name', customerName);
-    formData.append('customer_po', customerPO);
-    formData.append('production_order_code', orderCode);
-    formData.append('production_demand_code', demandCode);
-    formData.append('pallet_number', palletNumber);
-    formData.append('box_number', boxNumber);
-    formData.append('element_image', imageData);
-    formData.append('filepath', filepath);
-    formData.append('capture_start_time', captureStartTime || new Date().toISOString());
-    formData.append('upload_start_time', uploadStartTime || overwriteTime);
-    formData.append('csrfmiddlewaretoken', getCookie('csrftoken'));
-    
-    fetch('/force_overwrite_human_image/', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        const completeTime = new Date().toISOString();
-        console.log(`⏱️ Force overwrite completed at: ${completeTime}`);
-        
-        if (data.status === 'success') {
-            console.log('✅ Face image overwritten!');
-            
-            // Calculate total duration
-            let totalDuration = null;
-            if (captureStartTime) {
-                const start = new Date(captureStartTime);
-                const end = new Date(completeTime);
-                totalDuration = (end - start) / 1000;
-                console.log(`⏱️ Total duration: ${totalDuration.toFixed(3)} seconds`);
-            }
-            
-            // Save timing log
-            saveTimingLogToServer('overwritten', { 
-                image_type: 'Face Image (Overwritten)',
-                total_duration: totalDuration?.toFixed(3),
-                is_human: true
-            });
-            
-            humanCapturedThisSession = true;
-            isHumanCaptured = true;
-            faceCaptureInProgress = false;
-            
-            if (document.getElementById('debugFaceStatus')) {
-                document.getElementById('debugFaceStatus').textContent = 'True';
-            }
-            
-            if (totalDuration) {
-                alert(`✅ Face image overwritten!\n⏱️ Total time: ${totalDuration.toFixed(2)} seconds\n📝 Log saved`);
-            } else {
-                alert('✅ Face image overwritten successfully!\n📝 Timing log saved');
-            }
-        } else {
-            console.error('❌ Overwrite failed:', data.message);
-            faceCaptureInProgress = false;
-            saveTimingLogToServer('failed', { 
-                image_type: 'Face Image Overwrite', 
-                error: data.message,
-                is_human: true
-            });
-            alert('Overwrite failed: ' + data.message);
-        }
-    })
-    .catch(err => {
-        console.error('❌ Overwrite error:', err);
-        faceCaptureInProgress = false;
-        saveTimingLogToServer('failed', { 
-            image_type: 'Face Image Overwrite', 
-            error: err.message,
-            is_human: true
-        });
-        alert('Overwrite error: ' + err.message);
-    });
-}
-
-// Retake picture
-function retakePicture() {
-    console.log('Retaking picture - resetting time tracking');
-    // Reset time tracking for retake
-    captureStartTime = new Date().toISOString();
-    backImageCaptureTime = null;
-    frontImageCaptureTime = null;
-    console.log(`⏱️ Retake started at: ${captureStartTime}`);
-    
-    document.getElementById('imagePreview').classList.add('hidden');
-    document.getElementById('cameraFeed').classList.remove('hidden');
-    document.getElementById('captureBtn').classList.remove('hidden');
-    document.getElementById('uploadBtn').classList.add('hidden');
-    document.getElementById('retakeBtn').classList.add('hidden');
-    faceCaptureInProgress = false;
-}
-
-// Show image modal
 function showImageModal(imageUrl) {
     document.getElementById('modalImage').src = imageUrl;
     document.getElementById('imageModal').classList.remove('hidden');
 }
 
-// Close image modal
 function closeImageModal(event) {
     if (event.target.id === 'imageModal') {
         document.getElementById('imageModal').classList.add('hidden');
     }
 }
 
-// Delete image
+// ============================================================
+// DELETE IMAGE FUNCTION
+// ============================================================
+
 function deleteElementImage(imageUrl, elementDesc, isHumanImage = false) {
     if (!confirm('Delete this image? This will also delete the corresponding front/back camera image.')) return;
     
@@ -1153,23 +527,527 @@ function deleteElementImage(imageUrl, elementDesc, isHumanImage = false) {
     });
 }
 
-// Get CSRF token
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
-    return cookieValue;
+// ============================================================
+// CAMERA MODAL FUNCTIONS
+// ============================================================
+
+function openCameraModal(elementId, elementDesc) {
+    console.log('========== OPENING CAMERA ==========');
+    console.log('Element:', elementDesc);
+    
+    captureStartTime = new Date().toISOString();
+    backImageCaptureTime = null;
+    frontImageCaptureTime = null;
+    uploadStartTime = null;
+    console.log(`⏱️ Capture started at: ${captureStartTime}`);
+    
+    currentElementId = elementId;
+    document.getElementById('elementIdInput').value = elementId;
+    document.getElementById('elementDescInput').value = elementDesc;
+    document.getElementById('cameraModalTitle').textContent = `Take Picture: ${elementDesc}`;
+    
+    document.getElementById('cameraModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    
+    document.getElementById('cameraFeed').classList.remove('hidden');
+    document.getElementById('frontCameraFeed').classList.add('hidden');
+    document.getElementById('imagePreview').classList.add('hidden');
+    document.getElementById('captureBtn').classList.remove('hidden');
+    document.getElementById('uploadBtn').classList.add('hidden');
+    document.getElementById('retakeBtn').classList.add('hidden');
+    
+    frontCameraReady = false;
+    frontCameraAttempts = 0;
+    faceCaptureInProgress = false;
+    
+    startBackCamera();
+    setTimeout(startFrontCamera, 1000);
 }
 
-// Display timing summary function (for debugging)
+function closeCameraModal() {
+    console.log('Closing camera modal');
+    stopAllCameras();
+    document.getElementById('cameraModal').classList.add('hidden');
+    document.body.style.overflow = 'auto';
+    
+    if (captureStartTime && !uploadStartTime) {
+        saveTimingLogToServer('cancelled', { image_type: 'Cancelled before upload' });
+    }
+    
+    captureStartTime = null;
+    backImageCaptureTime = null;
+    frontImageCaptureTime = null;
+}
+
+// ============================================================
+// CAMERA START/STOP FUNCTIONS
+// ============================================================
+
+async function startBackCamera() {
+    try {
+        console.log('Starting back camera...');
+        const constraints = {
+            video: {
+                facingMode: 'environment',
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            }
+        };
+        
+        backStream = await navigator.mediaDevices.getUserMedia(constraints);
+        const video = document.getElementById('cameraFeed');
+        video.srcObject = backStream;
+        
+        video.onloadedmetadata = () => {
+            video.play()
+                .then(() => {
+                    console.log('✓ Back camera started');
+                    console.log('  Dimensions:', video.videoWidth, 'x', video.videoHeight);
+                })
+                .catch(e => console.error('Error playing back camera:', e));
+        };
+    } catch (err) {
+        console.error('✗ Back camera error:', err);
+        alert('Could not access back camera. Please check permissions.');
+    }
+}
+
+async function startFrontCamera() {
+    try {
+        frontStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user" }
+        });
+
+        const video = document.getElementById('frontCameraFeed');
+        video.classList.add('hidden');
+        video.srcObject = frontStream;
+        await video.play();
+        console.log("✅ FRONT CAMERA STARTED");
+    } catch (err) {
+        console.error("❌ FRONT CAMERA FAILED:", err);
+    }
+}
+
+function stopAllCameras() {
+    console.log('Stopping all cameras...');
+    if (backStream) {
+        backStream.getTracks().forEach(track => track.stop());
+        backStream = null;
+    }
+    if (frontStream) {
+        frontStream.getTracks().forEach(track => track.stop());
+        frontStream = null;
+    }
+    frontCameraReady = false;
+    frontCameraAttempts = 0;
+    faceCaptureInProgress = false;
+}
+
+// ============================================================
+// CAPTURE FUNCTIONS
+// ============================================================
+
+async function captureImage() {
+    console.log("📸 STEP 1: Capture BACK image");
+    backImageCaptureTime = new Date().toISOString();
+    console.log(`⏱️ Back image captured at: ${backImageCaptureTime}`);
+    
+    const overlay = document.getElementById('captureOverlay');
+    overlay.classList.add('flash');
+    setTimeout(() => overlay.classList.remove('flash'), 300);
+    
+    const video = document.getElementById('cameraFeed');
+    const preview = document.getElementById('imagePreview');
+    const ctx = preview.getContext('2d');
+
+    preview.width = video.videoWidth;
+    preview.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+
+    window.backImageData = preview.toDataURL('image/jpeg').split(',')[1];
+
+    if (backStream) {
+        backStream.getTracks().forEach(track => track.stop());
+    }
+
+    console.log("📸 STEP 2: Starting FRONT camera");
+    await startFrontCamera();
+    await new Promise(r => setTimeout(r, 800));
+    await captureFrontImage();
+
+    console.log("📸 STEP 3: Both images captured");
+    
+    const bothCapturedTime = new Date().toISOString();
+    console.log(`⏱️ Both images captured at: ${bothCapturedTime}`);
+    
+    document.getElementById('uploadBtn').classList.remove('hidden');
+    document.getElementById('captureBtn').classList.add('hidden');
+}
+
+async function captureFrontImage() {
+    const video = document.getElementById('frontCameraFeed');
+    const canvas = document.getElementById('frontCameraCanvas');
+    const ctx = canvas.getContext('2d');
+    document.getElementById('captureBtn').classList.add('hidden');
+    let retries = 0;
+
+    while ((video.videoWidth === 0) && retries < 10) {
+        await new Promise(r => setTimeout(r, 200));
+        retries++;
+    }
+
+    if (!video.videoWidth) {
+        console.error("❌ FRONT STILL NOT READY");
+        return;
+    }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+
+    window.frontImageData = canvas.toDataURL('image/jpeg').split(',')[1];
+    frontImageCaptureTime = new Date().toISOString();
+    console.log(`⏱️ Front image captured at: ${frontImageCaptureTime}`);
+
+    console.log("✅ FRONT IMAGE CAPTURED");
+}
+
+// ============================================================
+// UPLOAD FUNCTIONS
+// ============================================================
+
+function uploadPicture() {
+    console.log("========== UPLOADING BOTH IMAGES ==========");
+    uploadStartTime = new Date().toISOString();
+    console.log(`⏱️ Upload started at: ${uploadStartTime}`);
+    
+    const elementDesc = document.getElementById('elementDescInput').value;
+
+    const formData1 = new FormData(document.getElementById('uploadForm'));
+    formData1.set("element_image", window.backImageData);
+    formData1.set("is_human_image", "false");
+    formData1.set("capture_start_time", captureStartTime || new Date().toISOString());
+    formData1.set("back_capture_time", backImageCaptureTime || '');
+    formData1.set("front_capture_time", frontImageCaptureTime || '');
+    formData1.set("upload_start_time", uploadStartTime);
+    formData1.set("element_desc", elementDesc);
+
+    const formData2 = new FormData(document.getElementById('humanUploadForm'));
+    formData2.set("element_image", window.frontImageData);
+    formData2.set("is_human_image", "true");
+    formData2.set("element_desc", elementDesc);
+    formData2.set("capture_start_time", captureStartTime || new Date().toISOString());
+    formData2.set("back_capture_time", backImageCaptureTime || '');
+    formData2.set("front_capture_time", frontImageCaptureTime || '');
+    formData2.set("upload_start_time", uploadStartTime);
+
+    Promise.all([
+        fetch("/upload_element_image/", { 
+            method: "POST", 
+            body: formData1,
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        }),
+        fetch("/upload_element_image/", { 
+            method: "POST", 
+            body: formData2,
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        })
+    ])
+    .then(responses => Promise.all(responses.map(r => r.json())))
+    .then(results => {
+        const uploadCompleteTime = new Date().toISOString();
+        console.log(`⏱️ Upload completed at: ${uploadCompleteTime}`);
+        
+        let totalDuration = null;
+        if (captureStartTime) {
+            const start = new Date(captureStartTime);
+            const end = new Date(uploadCompleteTime);
+            totalDuration = (end - start) / 1000;
+            console.log(`⏱️ TOTAL DURATION: ${totalDuration.toFixed(3)} seconds`);
+        }
+        
+        saveTimingLogToServer('success', { 
+            image_type: 'Both Images',
+            total_duration: totalDuration?.toFixed(3)
+        });
+        
+        let timingMessage = "✅ Images uploaded successfully!\n\n";
+        if (captureStartTime && totalDuration) {
+            timingMessage += `⏱️ Total time from capture to upload: ${totalDuration.toFixed(2)} seconds\n`;
+            timingMessage += `📝 Detailed log saved to: \\\\192.168.4.32\\Corekit\\logs\\`;
+        }
+        
+        alert(timingMessage);
+        location.reload();
+    })
+    .catch(err => {
+        console.error("Upload failed:", err);
+        saveTimingLogToServer('failed', { 
+            image_type: 'Upload Failed', 
+            error: err.message 
+        });
+        alert("Upload failed: " + err.message);
+    });
+}
+
+function retakePicture() {
+    console.log('Retaking picture - resetting time tracking');
+    captureStartTime = new Date().toISOString();
+    backImageCaptureTime = null;
+    frontImageCaptureTime = null;
+    console.log(`⏱️ Retake started at: ${captureStartTime}`);
+    
+    document.getElementById('imagePreview').classList.add('hidden');
+    document.getElementById('cameraFeed').classList.remove('hidden');
+    document.getElementById('captureBtn').classList.remove('hidden');
+    document.getElementById('uploadBtn').classList.add('hidden');
+    document.getElementById('retakeBtn').classList.add('hidden');
+    faceCaptureInProgress = false;
+}
+
+// ============================================================
+// SAVE TIMING LOG
+// ============================================================
+
+async function saveTimingLogToServer(status, additionalData = {}) {
+    const elementDesc = document.getElementById('elementDescInput')?.value || 'Unknown';
+    const uploadCompleteTime = new Date().toISOString();
+    
+    let totalDuration = null;
+    if (captureStartTime && uploadCompleteTime) {
+        const start = new Date(captureStartTime);
+        const end = new Date(uploadCompleteTime);
+        totalDuration = ((end - start) / 1000).toFixed(3);
+    }
+    
+    const logData = {
+        element_desc: elementDesc,
+        image_type: additionalData.image_type || 'Element Image',
+        status: status,
+        order_code: orderCode,
+        demand_code: demandCode,
+        customer_name: customerName,
+        customer_po: customerPO,
+        pallet_number: palletNumber,
+        box_number: boxNumber,
+        pl_value: additionalData.pl_value || '1',
+        capture_start_time: captureStartTime,
+        back_capture_time: backImageCaptureTime,
+        front_capture_time: frontImageCaptureTime,
+        upload_start_time: uploadStartTime,
+        upload_complete_time: uploadCompleteTime,
+        total_duration: totalDuration,
+        folder_path: additionalData.folder_path || folderPathFromServer || 'N/A',
+        ip_address: '',
+        error_message: additionalData.error || ''
+    };
+    
+    console.log('📝 Saving timing log to network:', logData);
+    
+    try {
+        const response = await fetch('/save_timing_log/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(logData)
+        });
+        const data = await response.json();
+        if (data.status === 'success') {
+            console.log('✅ Timing log saved to: \\\\192.168.4.32\\Corekit\\logs\\');
+        } else {
+            console.error('❌ Failed to save timing log:', data.message);
+        }
+    } catch (err) {
+        console.error('❌ Error saving timing log:', err);
+    }
+}
+
+// ============================================================
+// BOX CAPTURE FUNCTIONS
+// ============================================================
+
+async function openBoxCaptureModal() {
+    console.log("========== OPEN BOX CAPTURE ==========");
+
+    const modal = document.getElementById("boxCaptureModal");
+    const video = document.getElementById("boxCameraFeed");
+    const preview = document.getElementById("boxImagePreview");
+
+    modal.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+
+    video.classList.remove("hidden");
+    preview.classList.add("hidden");
+
+    document.getElementById("boxCaptureBtn").classList.remove("hidden");
+    document.getElementById("boxUploadBtn").classList.add("hidden");
+    document.getElementById("boxRetakeBtn").classList.add("hidden");
+
+    boxImageData = null;
+
+    try {
+        if (boxCameraStream) {
+            boxCameraStream.getTracks().forEach(track => track.stop());
+            boxCameraStream = null;
+        }
+
+        boxCameraStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: { ideal: "environment" },
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
+            },
+            audio: false
+        });
+
+        video.srcObject = boxCameraStream;
+        await video.play();
+        console.log("✅ Box camera started");
+        console.log("Camera resolution:", video.videoWidth, "x", video.videoHeight);
+    } catch (error) {
+        console.error("❌ Camera error:", error);
+        alert("Could not access camera.\n\nPlease allow camera permission.");
+        closeBoxCaptureModal();
+    }
+}
+
+function closeBoxCaptureModal() {
+    console.log("Closing box camera");
+    stopBoxCamera();
+    document.getElementById("boxCaptureModal").classList.add("hidden");
+    document.body.style.overflow = "auto";
+}
+
+function stopBoxCamera() {
+    if (boxCameraStream) {
+        boxCameraStream.getTracks().forEach(track => track.stop());
+        boxCameraStream = null;
+    }
+}
+
+function captureBoxImage() {
+    console.log("📸 Capturing box image...");
+
+    const video = document.getElementById("boxCameraFeed");
+    const canvas = document.getElementById("boxImagePreview");
+    const ctx = canvas.getContext("2d");
+
+    if (!video.videoWidth) {
+        alert("Camera is not ready yet.");
+        return;
+    }
+
+    const overlay = document.getElementById("boxCaptureOverlay");
+    overlay.classList.add("flash");
+    setTimeout(() => overlay.classList.remove("flash"), 300);
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    boxImageData = canvas.toDataURL("image/jpeg", 0.90);
+    boxImageData = boxImageData.split(",")[1];
+
+    console.log("✅ Box image captured");
+    stopBoxCamera();
+
+    video.classList.add("hidden");
+    canvas.classList.remove("hidden");
+
+    document.getElementById("boxCaptureBtn").classList.add("hidden");
+    document.getElementById("boxUploadBtn").classList.remove("hidden");
+    document.getElementById("boxRetakeBtn").classList.remove("hidden");
+}
+
+function retakeBoxImage() {
+    console.log("🔄 Retaking box image");
+    boxImageData = null;
+    document.getElementById("boxImagePreview").classList.add("hidden");
+    document.getElementById("boxCaptureBtn").classList.remove("hidden");
+    document.getElementById("boxUploadBtn").classList.add("hidden");
+    document.getElementById("boxRetakeBtn").classList.add("hidden");
+    openBoxCameraOnly();
+}
+
+async function openBoxCameraOnly() {
+    const video = document.getElementById("boxCameraFeed");
+    video.classList.remove("hidden");
+
+    try {
+        boxCameraStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: { ideal: "environment" },
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
+            },
+            audio: false
+        });
+
+        video.srcObject = boxCameraStream;
+        await video.play();
+        console.log("✅ Camera restarted");
+    } catch (error) {
+        console.error(error);
+        alert("Could not restart camera.");
+    }
+}
+
+async function uploadBoxImage() {
+    console.log("========== UPLOADING BOX IMAGE ==========");
+
+    if (!boxImageData) {
+        alert("Please capture an image first.");
+        return;
+    }
+
+    const uploadButton = document.getElementById("boxUploadBtn");
+    uploadButton.disabled = true;
+    uploadButton.innerText = "⏳ Uploading...";
+
+    try {
+        const formData = new FormData();
+        formData.append("box_image", boxImageData);
+        formData.append("production_order_code", orderCode);
+        formData.append("production_demand_code", demandCode);
+        formData.append("pallet_number", palletNumber);
+        formData.append("box_number", boxNumber);
+        formData.append("customer_name", customerName);
+        formData.append("customer_po", customerPO);
+        formData.append("csrfmiddlewaretoken", getCookie("csrftoken"));
+
+        const response = await fetch("/upload_box_capture/", {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await response.json();
+        console.log("Server response:", data);
+
+        if (data.status === "success") {
+            alert("✅ Box image uploaded successfully!\n\nSaved to:\n" + data.filepath);
+            closeBoxCaptureModal();
+            location.reload();
+        } else {
+            throw new Error(data.message || "Upload failed");
+        }
+    } catch (error) {
+        console.error("❌ Box image upload failed:", error);
+        alert("❌ Upload failed:\n\n" + error.message);
+        uploadButton.disabled = false;
+        uploadButton.innerText = "⬆ Upload";
+    }
+}
+
+// ============================================================
+// TIMING SUMMARY
+// ============================================================
+
 function showTimingSummary() {
     console.log("\n========== TIMING SUMMARY ==========");
     console.log(`Capture Start: ${captureStartTime || 'Not started'}`);
@@ -1199,494 +1077,8 @@ function showTimingSummary() {
     console.log("==================================\n");
 }
 
-// ============================================================
-// BOX CAPTURE
-// ============================================================
-
-let boxCameraStream = null;
-let boxImageData = null;
-
-
-// ------------------------------------------------------------
-// OPEN BOX CAMERA
-// ------------------------------------------------------------
-
-async function openBoxCaptureModal() {
-
-    console.log("========== OPEN BOX CAPTURE ==========");
-
-    const modal = document.getElementById("boxCaptureModal");
-    const video = document.getElementById("boxCameraFeed");
-    const preview = document.getElementById("boxImagePreview");
-
-    modal.classList.remove("hidden");
-
-    document.body.style.overflow = "hidden";
-
-    // Reset UI
-    video.classList.remove("hidden");
-    preview.classList.add("hidden");
-
-    document.getElementById("boxCaptureBtn")
-        .classList.remove("hidden");
-
-    document.getElementById("boxUploadBtn")
-        .classList.add("hidden");
-
-    document.getElementById("boxRetakeBtn")
-        .classList.add("hidden");
-
-    boxImageData = null;
-
-    try {
-
-        // Stop previous stream if any
-        if (boxCameraStream) {
-
-            boxCameraStream.getTracks().forEach(track => {
-                track.stop();
-            });
-
-            boxCameraStream = null;
-        }
-
-
-        // Open BACK camera
-        boxCameraStream =
-            await navigator.mediaDevices.getUserMedia({
-
-                video: {
-                    facingMode: {
-                        ideal: "environment"
-                    },
-
-                    width: {
-                        ideal: 1920
-                    },
-
-                    height: {
-                        ideal: 1080
-                    }
-                },
-
-                audio: false
-
-            });
-
-
-        video.srcObject = boxCameraStream;
-
-        await video.play();
-
-        console.log("✅ Box camera started");
-
-        console.log(
-            "Camera resolution:",
-            video.videoWidth,
-            "x",
-            video.videoHeight
-        );
-
-    }
-
-    catch (error) {
-
-        console.error(
-            "❌ Camera error:",
-            error
-        );
-
-        alert(
-            "Could not access camera.\n\n" +
-            "Please allow camera permission."
-        );
-
-        closeBoxCaptureModal();
-    }
-}
-
-
-
-// ------------------------------------------------------------
-// CLOSE BOX CAMERA
-// ------------------------------------------------------------
-
-function closeBoxCaptureModal() {
-
-    console.log("Closing box camera");
-
-    stopBoxCamera();
-
-    document
-        .getElementById("boxCaptureModal")
-        .classList.add("hidden");
-
-    document.body.style.overflow = "auto";
-
-}
-
-
-
-// ------------------------------------------------------------
-// STOP CAMERA
-// ------------------------------------------------------------
-
-function stopBoxCamera() {
-
-    if (boxCameraStream) {
-
-        boxCameraStream
-            .getTracks()
-            .forEach(track => track.stop());
-
-        boxCameraStream = null;
-    }
-
-}
-
-
-
-// ------------------------------------------------------------
-// CAPTURE IMAGE
-// ------------------------------------------------------------
-
-function captureBoxImage() {
-
-    console.log("📸 Capturing box image...");
-
-    const video =
-        document.getElementById("boxCameraFeed");
-
-    const canvas =
-        document.getElementById("boxImagePreview");
-
-    const ctx =
-        canvas.getContext("2d");
-
-
-    if (!video.videoWidth) {
-
-        alert("Camera is not ready yet.");
-
-        return;
-    }
-
-
-    // Flash effect
-    const overlay =
-        document.getElementById("boxCaptureOverlay");
-
-    overlay.classList.add("flash");
-
-    setTimeout(() => {
-
-        overlay.classList.remove("flash");
-
-    }, 300);
-
-
-    // Use actual camera resolution
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-
-    // Draw camera frame
-    ctx.drawImage(
-        video,
-        0,
-        0,
-        canvas.width,
-        canvas.height
-    );
-
-
-    // Convert to JPEG
-    boxImageData =
-        canvas.toDataURL(
-            "image/jpeg",
-            0.90
-        );
-
-
-    // Remove base64 header
-    boxImageData =
-        boxImageData.split(",")[1];
-
-
-    console.log("✅ Box image captured");
-
-
-    // Stop camera
-    stopBoxCamera();
-
-
-    // Show preview
-    video.classList.add("hidden");
-
-    canvas.classList.remove("hidden");
-
-
-    // Buttons
-    document
-        .getElementById("boxCaptureBtn")
-        .classList.add("hidden");
-
-    document
-        .getElementById("boxUploadBtn")
-        .classList.remove("hidden");
-
-    document
-        .getElementById("boxRetakeBtn")
-        .classList.remove("hidden");
-
-}
-
-
-
-// ------------------------------------------------------------
-// RETAKE
-// ------------------------------------------------------------
-
-function retakeBoxImage() {
-
-    console.log("🔄 Retaking box image");
-
-    boxImageData = null;
-
-    document
-        .getElementById("boxImagePreview")
-        .classList.add("hidden");
-
-    document
-        .getElementById("boxCaptureBtn")
-        .classList.remove("hidden");
-
-    document
-        .getElementById("boxUploadBtn")
-        .classList.add("hidden");
-
-    document
-        .getElementById("boxRetakeBtn")
-        .classList.add("hidden");
-
-    openBoxCameraOnly();
-}
-
-
-
-// ------------------------------------------------------------
-// REOPEN CAMERA
-// ------------------------------------------------------------
-
-async function openBoxCameraOnly() {
-
-    const video =
-        document.getElementById("boxCameraFeed");
-
-    video.classList.remove("hidden");
-
-
-    try {
-
-        boxCameraStream =
-            await navigator.mediaDevices.getUserMedia({
-
-                video: {
-                    facingMode: {
-                        ideal: "environment"
-                    },
-
-                    width: {
-                        ideal: 1920
-                    },
-
-                    height: {
-                        ideal: 1080
-                    }
-                },
-
-                audio: false
-
-            });
-
-
-        video.srcObject = boxCameraStream;
-
-        await video.play();
-
-        console.log("✅ Camera restarted");
-
-    }
-
-    catch (error) {
-
-        console.error(error);
-
-        alert(
-            "Could not restart camera."
-        );
-    }
-
-}
-
-
-
-// ------------------------------------------------------------
-// UPLOAD BOX IMAGE
-// ------------------------------------------------------------
-
-async function uploadBoxImage() {
-
-    console.log(
-        "========== UPLOADING BOX IMAGE =========="
-    );
-
-
-    if (!boxImageData) {
-
-        alert("Please capture an image first.");
-
-        return;
-    }
-
-
-    const uploadButton =
-        document.getElementById("boxUploadBtn");
-
-    uploadButton.disabled = true;
-
-    uploadButton.innerText =
-        "⏳ Uploading...";
-
-
-    try {
-
-        const formData = new FormData();
-
-
-        // Image
-        formData.append(
-            "box_image",
-            boxImageData
-        );
-
-
-        // Order information
-        formData.append(
-            "production_order_code",
-            orderCode
-        );
-
-        formData.append(
-            "production_demand_code",
-            demandCode
-        );
-
-        formData.append(
-            "pallet_number",
-            palletNumber
-        );
-
-        formData.append(
-            "box_number",
-            boxNumber
-        );
-
-        formData.append(
-            "customer_name",
-            customerName
-        );
-
-        formData.append(
-            "customer_po",
-            customerPO
-        );
-
-
-        // CSRF
-        formData.append(
-            "csrfmiddlewaretoken",
-            getCookie("csrftoken")
-        );
-
-
-        const response =
-            await fetch(
-                "/upload_box_capture/",
-                {
-                    method: "POST",
-                    body: formData
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        console.log(
-            "Server response:",
-            data
-        );
-
-
-        if (data.status === "success") {
-
-            alert(
-                "✅ Box image uploaded successfully!\n\n" +
-                "Saved to:\n" +
-                data.filepath
-            );
-
-
-            closeBoxCaptureModal();
-
-
-            // Optional reload
-            location.reload();
-
-        }
-
-        else {
-
-            throw new Error(
-                data.message ||
-                "Upload failed"
-            );
-        }
-
-    }
-
-    catch (error) {
-
-        console.error(
-            "❌ Box image upload failed:",
-            error
-        );
-
-
-        alert(
-            "❌ Upload failed:\n\n" +
-            error.message
-        );
-
-
-        uploadButton.disabled = false;
-
-        uploadButton.innerText =
-            "⬆ Upload";
-    }
-
-}
-
 // Make timing functions available globally
 window.showTimingSummary = showTimingSummary;
-
-console.log('========== JAVASCRIPT LOADED ==========');
-console.log('Human image exists:', isHumanCaptured);
-console.log('Order Code:', orderCode);
-console.log('✅ Time tracking enabled - logs will be saved to: \\\\192.168.4.32\\Corekit\\logs\\');
-console.log('Use showTimingSummary() in console to check current times');
 </script>
 
 <style>
@@ -1694,14 +1086,14 @@ console.log('Use showTimingSummary() in console to check current times');
 .hidden { display: none !important; }
 
 /* Modal styles - full screen */
-#cameraModal, #imageModal {
+#cameraModal, #imageModal, #boxCaptureModal {
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 /* Camera feed styles - full screen */
-#cameraFeed, #imagePreview {
+#cameraFeed, #imagePreview, #boxCameraFeed, #boxImagePreview {
     width: 100%;
     height: 100%;
     object-fit: contain;
@@ -1709,7 +1101,7 @@ console.log('Use showTimingSummary() in console to check current times');
 }
 
 /* Capture flash effect */
-#captureOverlay.flash {
+#captureOverlay.flash, #boxCaptureOverlay.flash {
     opacity: 0.3 !important;
 }
 
@@ -1735,6 +1127,10 @@ button:disabled {
     cursor: not-allowed;
 }
 
+button:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
 /* Ensure modal covers full screen */
 .fixed {
     position: fixed;
@@ -1756,6 +1152,9 @@ button:disabled {
 }
 .object-contain {
     object-fit: contain;
+}
+.z-50 {
+    z-index: 50;
 }
 </style>
 {% endblock %}
