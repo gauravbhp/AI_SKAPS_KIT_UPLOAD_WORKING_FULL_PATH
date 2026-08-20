@@ -3,17 +3,17 @@ import shutil
 import re
 import logging
 from pathlib import Path
-from datetime import datetime
 from django.conf import settings
 from .utils.db_queries import get_db_connection
 import ibm_db
 import json
 import base64
 from django.shortcuts import render
+from .auto_context import save_monitor_context, load_monitor_context
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
-
+from datetime import datetime
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -21,49 +21,88 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def _safe_str(value, default=''):
+    """Convert DB/UI values safely to stripped strings."""
+    if value is None:
+        return default
+    return str(value).strip()
+
+
+def _clean_path_part(value, default='UNKNOWN'):
+    """Create a safe single path component."""
+    value = _safe_str(value, default)
+    value = re.sub(r'[<>:"/\\|?*]+', '-', value)
+    value = re.sub(r'\s+', '-', value).strip(' .-_')
+    return value or default
+
+
+def _decode_base64_image(value):
+    """Decode a data-URL or plain base64 image safely."""
+    if not value:
+        raise ValueError("No image data received.")
+
+    if "," in value:
+        value = value.split(",", 1)[1]
+
+    try:
+        return base64.b64decode(value, validate=True)
+    except Exception as exc:
+        raise ValueError("Invalid base64 image data.") from exc
+
+
+def _find_image_url(folder_path, element_desc):
+    """Find an element image case-insensitively by filename stem."""
+    folder = Path(folder_path)
+    if not folder.is_dir():
+        return None
+
+    wanted = _safe_str(element_desc).casefold()
+
+    for file_path in folder.iterdir():
+        if file_path.is_file() and file_path.stem.casefold() == wanted:
+            try:
+                relative_folder = os.path.relpath(folder, settings.MEDIA_ROOT)
+            except ValueError:
+                relative_folder = folder.name
+
+            if relative_folder == ".":
+                relative_url = ""
+            else:
+                relative_url = relative_folder.replace(os.sep, "/").strip("/")
+
+            base_url = str(settings.MEDIA_URL).rstrip("/")
+            return (
+                f"{base_url}/{relative_url}/{file_path.name}"
+                if relative_url
+                else f"{base_url}/{file_path.name}"
+            )
+
+    return None
+
+
 # Paths
 SOURCE_DIR = r"E:\Onedrive_it_intern\OneDrive - SKAPS INDUSTRIES INDIA PVT.LTD\Jay Vyas's files - Images from Server\Results From Bot"
 DESTINATION_BASE = r"\\192.168.4.32\testKit"
 
 # ====================================================================
-# 1. CHECK TXT FILE EXISTS (WITH RECURSIVE SEARCH)
+# 1. CHECK TXT FILE EXISTS
 # ====================================================================
 
 def check_txt_file_exists(element_desc, folder_structure):
     """
-    Check if txt file exists in destination folder (with fallback recursive search)
+    Check if txt file exists in the SPECIFIC folder structure
+    (order/demand/pallet/box ke hisaab se)
     """
     dest_base = Path(DESTINATION_BASE)
     dest_folder = dest_base / folder_structure
     txt_file_path = dest_folder / f"{element_desc}.txt"
     
-    print(f"[TXT CHECK] Element: {element_desc}")
-    print(f"[TXT CHECK] Folder Structure: {folder_structure}")
-    print(f"[TXT CHECK] Primary path: {txt_file_path}")
-    
-    # Check primary path
+    # Sirf is specific folder mein check karo
     if txt_file_path.exists():
-        print(f"[TXT CHECK] ✅ Found at primary path: {txt_file_path}")
+        logger.info(f"[TXT CHECK] ✅ Found: {txt_file_path}")
         return True
     
-    # Check if folder exists and list files
-    if dest_folder.exists():
-        print(f"[TXT CHECK] Folder exists: {dest_folder}")
-        txt_files = list(dest_folder.glob('*.txt'))
-        print(f"[TXT CHECK] TXT files in folder: {[f.name for f in txt_files]}")
-    else:
-        print(f"[TXT CHECK] ❌ Folder does not exist: {dest_folder}")
-    
-    # Check recursively in destination base
-    try:
-        print(f"[TXT CHECK] Searching recursively in: {dest_base}")
-        for file_path in dest_base.rglob(f"{element_desc}.txt"):
-            print(f"[TXT CHECK] ✅ Found at: {file_path}")
-            return True
-    except Exception as e:
-        print(f"[TXT CHECK] Error in recursive search: {e}")
-    
-    print(f"[TXT CHECK] ❌ TXT file not found: {element_desc}")
+    logger.info(f"[TXT CHECK] ❌ Not found: {txt_file_path}")
     return False
 
 
@@ -135,15 +174,15 @@ def fetch_customer_data_from_ui(production_order_code, production_demand_code):
         
         if result:
             normalized_result = {
-                'CustomerName': result.get('CUSTOMERNAME', 'UNKNOWN').strip(),
-                'CustomerPO': result.get('CUSTOMERPO', 'NONE').strip(),
-                'CustomerCode': result.get('CUSTOMERCODE', '').strip(),
-                'ProductionOrderCode': result.get('PRODUCTIONORDERCODE', '').strip(),
-                'DemandCode': result.get('DEMANDCODE', '').strip(),
-                'Subcode01': result.get('SUBCODE01', '').strip(),
-                'Subcode02': result.get('SUBCODE02', '').strip(),
-                'Subcode03': result.get('SUBCODE03', '').strip(),
-                'Subcode04': result.get('SUBCODE04', '').strip(),
+                'CustomerName': _safe_str(result.get('CUSTOMERNAME'), 'UNKNOWN'),
+                'CustomerPO': _safe_str(result.get('CUSTOMERPO'), 'NONE'),
+                'CustomerCode': _safe_str(result.get('CUSTOMERCODE'), ''),
+                'ProductionOrderCode': _safe_str(result.get('PRODUCTIONORDERCODE'), ''),
+                'DemandCode': _safe_str(result.get('DEMANDCODE'), ''),
+                'Subcode01': _safe_str(result.get('SUBCODE01'), ''),
+                'Subcode02': _safe_str(result.get('SUBCODE02'), ''),
+                'Subcode03': _safe_str(result.get('SUBCODE03'), ''),
+                'Subcode04': _safe_str(result.get('SUBCODE04'), ''),
                 'Subcode05': result.get('SUBCODE05', '').strip()
             }
             print("[CUSTOMER QUERY] ✅ Customer data fetched successfully!")
@@ -214,17 +253,17 @@ def fetch_product_details_from_ui(production_order_code, production_demand_code)
         
         if result:
             normalized_result = {
-                'ItemType': result.get('ITEMTYPE', 'Not Available').strip(),
+                'ItemType': _safe_str(result.get('ITEMTYPE'), 'Not Available'),
                 'Subcode01': result.get('SUBCODE01', 'N/A').strip(),
                 'Subcode02': result.get('SUBCODE02', 'N/A').strip(),
                 'Subcode03': result.get('SUBCODE03', 'N/A').strip(),
                 'Subcode04': result.get('SUBCODE04', 'N/A').strip(),
                 'Subcode05': result.get('SUBCODE05', 'N/A').strip(),
-                'Subcode06': result.get('SUBCODE06', 'N/A').strip(),
-                'Subcode07': result.get('SUBCODE07', 'N/A').strip(),
-                'Subcode08': result.get('SUBCODE08', 'N/A').strip(),
-                'Subcode09': result.get('SUBCODE09', 'N/A').strip(),
-                'Subcode10': result.get('SUBCODE10', 'N/A').strip()
+                'Subcode06': _safe_str(result.get('SUBCODE06'), 'N/A'),
+                'Subcode07': _safe_str(result.get('SUBCODE07'), 'N/A'),
+                'Subcode08': _safe_str(result.get('SUBCODE08'), 'N/A'),
+                'Subcode09': _safe_str(result.get('SUBCODE09'), 'N/A'),
+                'Subcode10': _safe_str(result.get('SUBCODE10'), 'N/A')
             }
             print("[PRODUCT QUERY] ✅ Result found!")
             return normalized_result
@@ -275,16 +314,15 @@ def fetch_kit_elements_from_ui(production_order_code, production_demand_code, pa
         ON PDS.PRODUCTIONDEMANDCOMPANYCODE = PD.COMPANYCODE 
         AND PDS.PRODUCTIONDEMANDCOUNTERCODE = PD.COUNTERCODE 
         AND PDS.PRODUCTIONDEMANDCODE = PD.CODE
-    LEFT JOIN SKP_KITUPLOAD KE 
+    JOIN SKP_KITUPLOAD KE
         ON PD.COMPANYCODE = KE.COMPANYCODE
-        AND PD.ITEMTYPEAFICODE = KE.ITEMTYPECODE 
+        AND PD.ITEMTYPEAFICODE = KE.ITEMTYPECODE
         AND PD.SUBCODE01 = KE.DECOSUBCODE01
-        AND PD.SUBCODE02 = KE.DECOSUBCODE02 
-        AND PD.SUBCODE03 = KE.DECOSUBCODE03 
-        AND PD.SUBCODE04 = KE.DECOSUBCODE04 
-        AND PD.SUBCODE05 = KE.DECOSUBCODE05 
-    WHERE PDS.PRODUCTIONDEMANDCOMPANYCODE = '100'
-      AND PDS.PRODUCTIONDEMANDCODE = ?
+        AND PD.SUBCODE02 = KE.DECOSUBCODE02
+        AND PD.SUBCODE03 = KE.DECOSUBCODE03
+        AND PD.SUBCODE04 = KE.DECOSUBCODE04
+        AND PD.SUBCODE05 = KE.DECOSUBCODE05
+    WHERE PDS.PRODUCTIONDEMANDCODE = ?
       AND PDS.PRODUCTIONORDERCODE = ?
       AND KE.PALLETNUMBER = ?
       AND KE.BOXSEQUENCE = ?
@@ -307,6 +345,8 @@ def fetch_kit_elements_from_ui(production_order_code, production_demand_code, pa
         results = []
         result = ibm_db.fetch_assoc(stmt)
         
+        # get_element_data_from_db(element_desc,production_demand_code,production_order_code,pallet_number,box_sequence)
+        
         while result:
             pallet = result.get('PALLETNUMBER')
             box_seq = result.get('BOXSEQUENCE')
@@ -319,15 +359,15 @@ def fetch_kit_elements_from_ui(production_order_code, production_demand_code, pa
             total_pcs = result.get('TOTALPCS')
             
             results.append({
-                'PALLETNUMBER': str(pallet).strip() if pallet is not None else '',
-                'BOXSEQUENCE': str(box_seq).strip() if box_seq is not None else '',
-                'ELEMENTDESC': str(element_desc).strip() if element_desc is not None else '',
-                'PACKINGSEQUENCE': str(packing_seq).strip() if packing_seq is not None else 'PT1',
-                'PLACEMENTINBOX': str(placement).strip() if placement is not None else '',
-                'BOXNUMBER': str(box_no).strip() if box_no is not None else '1',
-                'ELEMENTSEQ': str(element_seq).strip() if element_seq is not None else '1',
-                'PARTDESC': str(part_desc).strip() if part_desc is not None else '',
-                'TOTALPCS': str(total_pcs).strip() if total_pcs is not None else '0'
+                'PALLETNUMBER': _safe_str(pallet),
+                'BOXSEQUENCE': _safe_str(box_seq),
+                'ELEMENTDESC': _safe_str(element_desc),
+                'PACKINGSEQUENCE': _safe_str(packing_seq, 'PT1'),
+                'PLACEMENTINBOX': _safe_str(placement),
+                'BOXNUMBER': _safe_str(box_no, '1'),
+                'ELEMENTSEQ': _safe_str(element_seq, '1'),
+                'PARTDESC': _safe_str(part_desc),
+                'TOTALPCS': _safe_str(total_pcs, '0')
             })
             result = ibm_db.fetch_assoc(stmt)
         
@@ -400,11 +440,12 @@ def build_folder_path_from_ui(production_order_code, production_demand_code, pal
             print("[BUILD FOLDER] ⚠️ No kit elements found!")
         
         # Clean values
-        customer_slug = re.sub(r'[^\w\s-]', '', customer_name).strip().upper()
-        customer_slug = customer_slug.replace(' ', '-').replace('--', '-') if customer_slug else 'UNKNOWN'
+        customer_slug = _clean_path_part(customer_name, 'UNKNOWN').upper()
         print(f"[BUILD FOLDER] Customer Slug: '{customer_slug}'")
         
-        po_clean = customer_po.upper() if customer_po and customer_po != '-' else 'NONE'
+        po_clean = _clean_path_part(customer_po, 'NONE').upper()
+        if po_clean == '-':
+            po_clean = 'NONE'
         print(f"[BUILD FOLDER] PO Clean: '{po_clean}'")
         
         order_clean = production_order_code.strip().upper()
@@ -425,7 +466,7 @@ def build_folder_path_from_ui(production_order_code, production_demand_code, pal
             demand_folder = demand_clean
             pallet_folder = f"PALLET_{pallet_clean}"
         
-        box_folder_value = re.sub(r'[^\w\-]', '', packing_sequence).strip()
+        box_folder_value = _clean_path_part(packing_sequence, 'PT1')
         if not box_folder_value or box_folder_value == 'None':
             box_folder_value = 'PT1'
         
@@ -453,14 +494,14 @@ def fetch_data(request):
         production_demand_code = request.POST.get('production_demand_code', '').strip()
         pallet_number = request.POST.get('pallet_number', '1').strip()
         box_number = request.POST.get('box_number', '1').strip()  # This is BOXSEQUENCE
-        
+
         print("=" * 60)
         print(f"[DEBUG] Order Code: '{production_order_code}'")
         print(f"[DEBUG] Demand Code: '{production_demand_code}'")
         print(f"[DEBUG] Pallet Number: '{pallet_number}'")
         print(f"[DEBUG] Box Number (BOXSEQUENCE): '{box_number}'")
         print("=" * 60)
-        
+
         if not production_order_code or not production_demand_code:
             context = {
                 'error': 'Please enter Order Code and Demand Code',
@@ -470,17 +511,44 @@ def fetch_data(request):
                 'box_number': box_number,
             }
             return render(request, 'fetch_data.html', context)
-        
+
         try:
             # Fetch data using UI parameters
             customer_data = fetch_customer_data_from_ui(production_order_code, production_demand_code)
             product_details = fetch_product_details_from_ui(production_order_code, production_demand_code)
             kit_elements = fetch_kit_elements_from_ui(production_order_code, production_demand_code, pallet_number, box_number)
-            
+
             print(f"[DEBUG] Customer Data: {customer_data is not None}")
             print(f"[DEBUG] Product Details: {product_details is not None}")
             print(f"[DEBUG] Kit Elements Found: {len(kit_elements) if kit_elements else 0}")
-            
+
+            # Update automatic monitor context with latest UI values.
+            try:
+                from .scheduler import set_monitor_context
+
+                set_monitor_context(
+                    production_order_code,
+                    production_demand_code,
+                    pallet_number,
+                    box_number,
+                )
+            except Exception as sched_ctx_err:
+                logger.error(
+                    "[SCHEDULER] Could not update monitor context: %s",
+                    sched_ctx_err
+                )
+
+            # Keep the existing job-id compatibility block.
+            try:
+                from .scheduler import _scheduler
+                if _scheduler and _scheduler.running:
+                    logger.info(
+                        "[SCHEDULER] Monitor is already running; "
+                        "it will use the updated context on the next scan."
+                    )
+            except Exception as sched_err:
+                logger.error(f"[SCHEDULER] Could not update job args: {sched_err}")
+
             # Check if data exists
             if not customer_data and not product_details and not kit_elements:
                 context = {
@@ -491,31 +559,27 @@ def fetch_data(request):
                     'box_number': box_number,
                 }
                 return render(request, 'fetch_data.html', context)
-            
+
             # Process kit elements
             packing_sequence = 'PT1'
             if kit_elements and len(kit_elements) > 0:
                 packing_sequence = kit_elements[0].get('PACKINGSEQUENCE', 'PT1')
                 if not packing_sequence or packing_sequence == 'None':
                     packing_sequence = 'PT1'
-            
+
             # Build folder path for each element and check TXT file
             for element in kit_elements:
                 element_desc = element.get('ELEMENTDESC', '').strip()
-                
                 folder_structure = build_folder_path_from_ui(
                     production_order_code,
                     production_demand_code,
                     pallet_number,
                     box_number
                 )
-                
                 if folder_structure:
                     element['folder_structure'] = folder_structure
-                    
-                    # ========== CHECK TXT FILE EXISTS ==========
                     element['txt_file_exists'] = check_txt_file_exists(element_desc, folder_structure)
-                    
+
                     # Check image exists
                     main_path = os.path.join(settings.MEDIA_ROOT, folder_structure)
                     image_url = None
@@ -526,17 +590,69 @@ def fetch_data(request):
                             if file_name == element_desc:
                                 image_url = f"{settings.MEDIA_URL}{folder_structure}/{file}".replace('\\', '/')
                                 break
-                    
                     element['image_url'] = image_url
                     element['has_image'] = image_url is not None
-            
+
+            # Persist the exact active scope and exact already-built path.
+            # Background worker will use this context; it will NOT search other orders.
+            active_folder_structure = build_folder_path_from_ui(
+                production_order_code,
+                production_demand_code,
+                pallet_number,
+                box_number,
+            )
+
+            if active_folder_structure:
+                save_monitor_context(
+                    production_order_code,
+                    production_demand_code,
+                    pallet_number,
+                    box_number,
+                    active_folder_structure,
+                )
+
+            # ------------------------------------------------------------
+            # SAVE THE EXACT ACTIVE SCOPE FOR THE BACKGROUND WORKER
+            # ------------------------------------------------------------
+            # Worker will search ONLY this:
+            #   Order + Demand + Pallet + Box
+            # and will move files ONLY into this already-built folder.
+            active_folder_structure = build_folder_path_from_ui(
+                production_order_code,
+                production_demand_code,
+                pallet_number,
+                box_number,
+            )
+
+            if active_folder_structure:
+                save_monitor_context(
+                    production_order_code,
+                    production_demand_code,
+                    pallet_number,
+                    box_number,
+                    active_folder_structure,
+                )
+                logger.info(
+                    "[AUTO CONTEXT] ✅ Active monitor scope saved: "
+                    "Order=%s Demand=%s Pallet=%s Box=%s Path=%s",
+                    production_order_code,
+                    production_demand_code,
+                    pallet_number,
+                    box_number,
+                    active_folder_structure,
+                )
+            else:
+                logger.error(
+                    "[AUTO CONTEXT] ❌ Could not build active folder path."
+                )
+
             # Prepare display data
             display_customer = {
                 'CustomerName': customer_data.get('CustomerName', 'Not Available') if customer_data else 'Not Available',
                 'CustomerPO': customer_data.get('CustomerPO', 'Not Available') if customer_data else 'Not Available',
                 'CustomerCode': customer_data.get('CustomerCode', 'Not Available') if customer_data else 'Not Available'
             }
-            
+
             display_product = {
                 'ItemType': product_details.get('ItemType', 'Not Available') if product_details else 'Not Available',
                 'Subcode01': product_details.get('Subcode01', 'N/A') if product_details else 'N/A',
@@ -548,7 +664,7 @@ def fetch_data(request):
                 'PL1': '1',
                 'PackingSequence': packing_sequence
             }
-            
+
             context = {
                 'customer_data': display_customer,
                 'product_details': display_product,
@@ -561,14 +677,13 @@ def fetch_data(request):
                 'MEDIA_URL': settings.MEDIA_URL,
                 'DESTINATION_BASE': DESTINATION_BASE,
             }
-            
+
             return render(request, 'view_data.html', context)
-            
+
         except Exception as e:
             print(f"[DEBUG] ❌ Exception: {str(e)}")
             import traceback
             traceback.print_exc()
-            
             context = {
                 'error': f'Error: {str(e)}',
                 'production_order_code': production_order_code,
@@ -579,6 +694,7 @@ def fetch_data(request):
             return render(request, 'fetch_data.html', context)
 
     return render(request, 'fetch_data.html')
+
 
 
 # ====================================================================
@@ -596,6 +712,14 @@ def view_data(request):
         product_details = fetch_product_details_from_ui(production_order_code, production_demand_code)
         kit_elements = fetch_kit_elements_from_ui(production_order_code, production_demand_code, pallet_number, box_number)
         
+        
+        monitor_and_move_files(
+            production_order_code,
+            production_demand_code,
+            pallet_number,
+            box_number
+        )
+       
         packing_sequence = 'PT1'
         if kit_elements and len(kit_elements) > 0:
             packing_sequence = kit_elements[0].get('PACKINGSEQUENCE', 'PT1')
@@ -613,6 +737,39 @@ def view_data(request):
             )
             
             if folder_structure:
+                # Persist the exact active scope/path for the background worker.
+                try:
+                    save_monitor_context(
+                        production_order_code,
+                        production_demand_code,
+                        pallet_number,
+                        box_number,
+                        folder_structure,
+                    )
+
+                    destination_folder = Path(DESTINATION_BASE) / folder_structure
+                    destination_folder.mkdir(parents=True, exist_ok=True)
+
+                    logger.info(
+                        "[AUTO CONTEXT] ✅ Destination folder ready: %s",
+                        destination_folder,
+                    )
+                    logger.info(
+                        "[AUTO CONTEXT] ✅ Saved active scope: "
+                        "Order=%s Demand=%s Pallet=%s Box=%s Path=%s",
+                        production_order_code,
+                        production_demand_code,
+                        pallet_number,
+                        box_number,
+                        folder_structure,
+                    )
+                except Exception as context_exc:
+                    logger.exception(
+                        "[AUTO CONTEXT] ❌ Failed to save active scope: %s",
+                        context_exc,
+                    )
+                    raise
+
                 element['folder_structure'] = folder_structure
                 
                 # ========== CHECK TXT FILE EXISTS ==========
@@ -620,14 +777,7 @@ def view_data(request):
                 
                 # Check image exists
                 image_path = os.path.join(settings.MEDIA_ROOT, folder_structure)
-                image_url = None
-                if os.path.exists(image_path):
-                    files = os.listdir(image_path)
-                    for file in files:
-                        file_name = os.path.splitext(file)[0]
-                        if file_name == element_desc:
-                            image_url = f"{settings.MEDIA_URL}{folder_structure}/{file}".replace('\\', '/')
-                            break
+                image_url = _find_image_url(image_path, element_desc)
                 
                 element['image_url'] = image_url
                 element['has_image'] = image_url is not None
@@ -693,18 +843,44 @@ def view_data(request):
             )
             
             if folder_structure:
+                # Persist the exact active scope/path for the background worker.
+                try:
+                    save_monitor_context(
+                        production_order_code,
+                        production_demand_code,
+                        pallet_number,
+                        box_number,
+                        folder_structure,
+                    )
+
+                    destination_folder = Path(DESTINATION_BASE) / folder_structure
+                    destination_folder.mkdir(parents=True, exist_ok=True)
+
+                    logger.info(
+                        "[AUTO CONTEXT] ✅ Destination folder ready: %s",
+                        destination_folder,
+                    )
+                    logger.info(
+                        "[AUTO CONTEXT] ✅ Saved active scope: "
+                        "Order=%s Demand=%s Pallet=%s Box=%s Path=%s",
+                        production_order_code,
+                        production_demand_code,
+                        pallet_number,
+                        box_number,
+                        folder_structure,
+                    )
+                except Exception as context_exc:
+                    logger.exception(
+                        "[AUTO CONTEXT] ❌ Failed to save active scope: %s",
+                        context_exc,
+                    )
+                    raise
+
                 element['folder_structure'] = folder_structure
                 element['txt_file_exists'] = check_txt_file_exists(element_desc, folder_structure)
                 
                 image_path = os.path.join(settings.MEDIA_ROOT, folder_structure)
-                image_url = None
-                if os.path.exists(image_path):
-                    files = os.listdir(image_path)
-                    for file in files:
-                        file_name = os.path.splitext(file)[0]
-                        if file_name == element_desc:
-                            image_url = f"{settings.MEDIA_URL}{folder_structure}/{file}".replace('\\', '/')
-                            break
+                image_url = _find_image_url(image_path, element_desc)
                 
                 element['image_url'] = image_url
                 element['has_image'] = image_url is not None
@@ -749,17 +925,17 @@ def view_data(request):
 # 6. MOVE TXT FILES (UI Based - Scheduler Compatible)
 # ====================================================================
 
-def move_txt_files(production_order_code=None, production_demand_code=None, pallet_number=None, box_number=None):
+def move_txt_files(production_order_code, production_demand_code, pallet_number, box_number):
     """
     Main function to move text files from source to destination
     """
     source_path = Path(SOURCE_DIR)
     dest_base = Path(DESTINATION_BASE)
-    
+
     if not source_path.exists():
         logger.error(f"Source directory not found: {SOURCE_DIR}")
         return False
-    
+
     if not dest_base.exists():
         logger.error(f"Destination base directory not found: {DESTINATION_BASE}")
         try:
@@ -768,66 +944,58 @@ def move_txt_files(production_order_code=None, production_demand_code=None, pall
         except Exception as e:
             logger.error(f"Could not create destination directory: {e}")
             return False
-    
+
     txt_files = list(source_path.glob('*.txt'))
-    
+
     if not txt_files:
         logger.info("No .txt files found in source directory")
         return True
-    
+
     logger.info(f"Found {len(txt_files)} .txt files to process")
-    
-    use_ui_params = production_order_code and production_demand_code
-    
-    if use_ui_params:
-        logger.info(f"✅ Using order: {production_order_code}, demand: {production_demand_code} from UI")
-        logger.info(f"✅ Using pallet: {pallet_number}, box: {box_number} from UI")
-    else:
-        logger.warning("⚠️ No UI parameters provided! Using database values.")
-    
+
     moved_count = 0
     failed_count = 0
     skipped_count = 0
-    
+
     for file_path in txt_files:
         file_name = file_path.stem
         logger.info(f"Processing: {file_name}")
-        
+
         try:
-            if not use_ui_params:
-                element_data = get_element_data_from_db(file_name)
-                if not element_data:
-                    logger.info(f"Element '{file_name}' not found in database. Skipping.")
-                    skipped_count += 1
-                    continue
-                
-                prod_order = element_data.get('PRODUCTIONORDERCODE', '').strip()
-                prod_demand = element_data.get('PRODUCTIONDEMANDCODE', '').strip()
-                pallet = element_data.get('PALLETNUMBER', '1')
-                box = element_data.get('BOXSEQUENCE', '1')
-                
-                if not prod_order or not prod_demand:
-                    logger.info(f"No order/demand found for '{file_name}'. Skipping.")
-                    skipped_count += 1
-                    continue
-                
-                folder_path = build_folder_path_from_ui(prod_order, prod_demand, pallet, box)
-            else:
-                folder_path = build_folder_path_from_ui(
-                    production_order_code,
-                    production_demand_code,
-                    pallet_number or '1',
-                    box_number or '1'
-                )
-            
+            # Always fetch element data with all parameters
+            element_data = get_element_data_from_db(
+                file_name,
+                production_order_code,
+                production_demand_code,
+                pallet_number or '1',
+                box_number or '1'
+            )
+
+            if not element_data:
+                logger.warning(f"Element '{file_name}' not found in database. Skipping.")
+                skipped_count += 1
+                continue
+
+            prod_order = element_data.get('PRODUCTIONORDERCODE', '').strip()
+            prod_demand = element_data.get('PRODUCTIONDEMANDCODE', '').strip()
+            pallet = element_data.get('PALLETNUMBER', '1')
+            box = element_data.get('BOXSEQUENCE', '1')
+
+            if not prod_order or not prod_demand:
+                logger.warning(f"No order/demand found for '{file_name}'. Skipping.")
+                skipped_count += 1
+                continue
+
+            folder_path = build_folder_path_from_ui(prod_order, prod_demand, pallet, box)
+
             if not folder_path:
                 logger.warning(f"Could not build folder path for {file_name}")
                 failed_count += 1
                 continue
-            
+
             dest_folder = dest_base / folder_path
             dest_file_path = dest_folder / file_path.name
-            
+
             try:
                 dest_folder.mkdir(parents=True, exist_ok=True)
                 logger.info(f"Created/Verified folder: {dest_folder}")
@@ -835,13 +1003,7 @@ def move_txt_files(production_order_code=None, production_demand_code=None, pall
                 logger.error(f"Could not create destination folder: {e}")
                 failed_count += 1
                 continue
-            
-            if dest_file_path.exists():
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                new_name = f"{file_path.stem}_{timestamp}.txt"
-                dest_file_path = dest_folder / new_name
-                logger.info(f"File exists, renaming to: {new_name}")
-            
+
             try:
                 shutil.move(str(file_path), str(dest_file_path))
                 moved_count += 1
@@ -849,264 +1011,484 @@ def move_txt_files(production_order_code=None, production_demand_code=None, pall
             except Exception as e:
                 logger.error(f"Error moving file: {e}")
                 failed_count += 1
-            
+
         except Exception as e:
             logger.error(f"Error processing {file_path.name}: {str(e)}")
             import traceback
             traceback.print_exc()
             failed_count += 1
-    
+
     logger.info("=" * 60)
     logger.info(f"✅ Successfully moved: {moved_count} files")
     logger.info(f"⏭️ Skipped (not in DB): {skipped_count} files")
     logger.info(f"❌ Failed: {failed_count} files")
     logger.info("=" * 60)
-    
+
     return moved_count > 0
 
 
-def get_element_data_from_db(element_desc):
-    """Get element data from SKP_KITUPLOAD table"""
+
+def find_element_context_from_db(
+    element_desc,
+    production_order_code,
+    production_demand_code,
+    pallet_number,
+    box_number,
+):
+    """
+    Find one TXT element ONLY inside the exact active production context.
+
+    DB is filtered by:
+        ELEMENTDESC
+        PRODUCTIONORDERCODE
+        PRODUCTIONDEMANDCODE
+        PALLETNUMBER
+        BOXSEQUENCE
+
+    This deliberately does NOT search all production orders.
+    """
+    conn = None
+
     try:
-        conn = get_db_connection()
-        if conn is None:
+        element_desc = _safe_str(element_desc)
+        production_order_code = _safe_str(production_order_code)
+        production_demand_code = _safe_str(production_demand_code)
+        pallet_number = _safe_str(pallet_number, "1")
+        box_number = _safe_str(box_number, "1")
+
+        if not element_desc:
+            logger.error("[AUTO DB] Empty ELEMENTDESC.")
             return None
-        
+
+        if not production_order_code or not production_demand_code:
+            logger.error(
+                "[AUTO DB] Missing Order/Demand context. "
+                "Element=%s",
+                element_desc,
+            )
+            return None
+
+        conn = get_db_connection()
+
+        if conn is None:
+            logger.error("[AUTO DB] Database connection failed.")
+            return None
+
         query = """
-        SELECT 
+        SELECT
+            KE.ELEMENTDESC,
             KE.PALLETNUMBER,
             KE.BOXSEQUENCE,
             KE.PACKINGSEQUENCE,
-            KE.ELEMENTDESC,
-            KE.ITEMTYPECODE,
-            KE.DECOSUBCODE01,
-            KE.DECOSUBCODE02,
-            KE.DECOSUBCODE03,
             PDS.PRODUCTIONORDERCODE,
             PDS.PRODUCTIONDEMANDCODE
         FROM SKP_KITUPLOAD KE
-        LEFT JOIN PRODUCTIONDEMANDSTEP PDS 
-            ON KE.COMPANYCODE = PDS.PRODUCTIONDEMANDCOMPANYCODE
-            AND KE.ITEMTYPECODE = PDS.ITEMTYPEAFICODE
-        WHERE UPPER(KE.ELEMENTDESC) = UPPER(?)
+        JOIN PRODUCTIONDEMAND PD
+            ON PD.COMPANYCODE = KE.COMPANYCODE
+            AND PD.ITEMTYPEAFICODE = KE.ITEMTYPECODE
+            AND PD.SUBCODE01 = KE.DECOSUBCODE01
+            AND PD.SUBCODE02 = KE.DECOSUBCODE02
+            AND PD.SUBCODE03 = KE.DECOSUBCODE03
+            AND PD.SUBCODE04 = KE.DECOSUBCODE04
+            AND PD.SUBCODE05 = KE.DECOSUBCODE05
+        JOIN PRODUCTIONDEMANDSTEP PDS
+            ON PDS.PRODUCTIONDEMANDCOMPANYCODE = PD.COMPANYCODE
+            AND PDS.PRODUCTIONDEMANDCOUNTERCODE = PD.COUNTERCODE
+            AND PDS.PRODUCTIONDEMANDCODE = PD.CODE
+        WHERE UPPER(TRIM(KE.ELEMENTDESC)) = UPPER(TRIM(?))
+          AND PDS.PRODUCTIONORDERCODE = ?
+          AND PDS.PRODUCTIONDEMANDCODE = ?
+          AND KE.PALLETNUMBER = ?
+          AND KE.BOXSEQUENCE = ?
         FETCH FIRST 1 ROW ONLY
         """
-        
+
+        params = [
+            element_desc,
+            production_order_code,
+            production_demand_code,
+            pallet_number,
+            box_number,
+        ]
+
+        logger.info(
+            "[AUTO DB] Scoped lookup -> Element=%s | Order=%s | "
+            "Demand=%s | Pallet=%s | Box=%s",
+            element_desc,
+            production_order_code,
+            production_demand_code,
+            pallet_number,
+            box_number,
+        )
+
         stmt = ibm_db.prepare(conn, query)
-        ibm_db.bind_param(stmt, 1, element_desc)
+
+        for index, value in enumerate(params, start=1):
+            ibm_db.bind_param(stmt, index, value)
+
         ibm_db.execute(stmt)
-        
         result = ibm_db.fetch_assoc(stmt)
-        
-        if result:
-            return {
-                'PALLETNUMBER': result.get('PALLETNUMBER', '1').strip(),
-                'BOXSEQUENCE': result.get('BOXSEQUENCE', '1').strip(),
-                'PACKINGSEQUENCE': result.get('PACKINGSEQUENCE', 'PT1').strip(),
-                'ELEMENTDESC': result.get('ELEMENTDESC', '').strip(),
-                'ITEMTYPECODE': result.get('ITEMTYPECODE', '').strip(),
-                'DECOSUBCODE01': result.get('DECOSUBCODE01', '').strip(),
-                'DECOSUBCODE02': result.get('DECOSUBCODE02', '').strip(),
-                'DECOSUBCODE03': result.get('DECOSUBCODE03', '').strip(),
-                'PRODUCTIONORDERCODE': result.get('PRODUCTIONORDERCODE', '').strip(),
-                'PRODUCTIONDEMANDCODE': result.get('PRODUCTIONDEMANDCODE', '').strip()
-            }
+
+        if not result:
+            logger.warning(
+                "[AUTO DB] ❌ No match in selected context for '%s.txt'",
+                element_desc,
+            )
+            return None
+
+        data = {
+            "ELEMENTDESC": _safe_str(result.get("ELEMENTDESC")),
+            "PRODUCTIONORDERCODE": _safe_str(
+                result.get("PRODUCTIONORDERCODE")
+            ),
+            "PRODUCTIONDEMANDCODE": _safe_str(
+                result.get("PRODUCTIONDEMANDCODE")
+            ),
+            "PALLETNUMBER": _safe_str(
+                result.get("PALLETNUMBER"), "1"
+            ),
+            "BOXSEQUENCE": _safe_str(
+                result.get("BOXSEQUENCE"), "1"
+            ),
+            "PACKINGSEQUENCE": _safe_str(
+                result.get("PACKINGSEQUENCE"), "PT1"
+            ),
+        }
+
+        logger.info(
+            "[AUTO DB] ✅ MATCH -> Order=%s Demand=%s Pallet=%s Box=%s "
+            "Packing=%s",
+            data["PRODUCTIONORDERCODE"],
+            data["PRODUCTIONDEMANDCODE"],
+            data["PALLETNUMBER"],
+            data["BOXSEQUENCE"],
+            data["PACKINGSEQUENCE"],
+        )
+
+        return data
+
+    except Exception as exc:
+        logger.exception(
+            "[AUTO DB] ❌ Scoped DB lookup failed for '%s': %s",
+            element_desc,
+            exc,
+        )
         return None
-    except Exception as e:
-        logger.error(f"Error getting element data: {e}")
-        return None
+
     finally:
-        if 'conn' in locals():
+        if conn is not None:
             try:
                 ibm_db.close(conn)
-            except:
-                pass
+            except Exception:
+                logger.debug(
+                    "[AUTO DB] DB connection close failed.",
+                    exc_info=True,
+                )
 
 
-# ====================================================================
-# 7. ENDPOINT TO MOVE TXT FILES FROM UI
-# ====================================================================
 
-@csrf_exempt
-@require_POST
-def move_txt_files_endpoint(request):
+def get_element_data_from_db(
+    element_desc,
+    production_order_code=None,
+    production_demand_code=None,
+    pallet_number=None,
+    box_number=None,
+):
+    """
+    Backward-compatible wrapper.
+
+    The automatic flow uses element_desc only.
+    Optional old parameters are accepted so existing manual code does not break.
+    """
+    data = find_element_context_from_db(element_desc)
+
+    if not data:
+        return None
+
+    # If old UI parameters are supplied, validate them rather than silently
+    # using a mismatched record.
+    if production_order_code and (
+        _safe_str(production_order_code).upper()
+        != data["PRODUCTIONORDERCODE"].upper()
+    ):
+        logger.warning(
+            "[GET ELEMENT DATA] Order mismatch for '%s': UI=%s DB=%s",
+            element_desc,
+            production_order_code,
+            data["PRODUCTIONORDERCODE"],
+        )
+        return None
+
+    if production_demand_code and (
+        _safe_str(production_demand_code).upper()
+        != data["PRODUCTIONDEMANDCODE"].upper()
+    ):
+        logger.warning(
+            "[GET ELEMENT DATA] Demand mismatch for '%s': UI=%s DB=%s",
+            element_desc,
+            production_demand_code,
+            data["PRODUCTIONDEMANDCODE"],
+        )
+        return None
+
+    if pallet_number and (
+        _safe_str(pallet_number).upper()
+        != data["PALLETNUMBER"].upper()
+    ):
+        logger.warning(
+            "[GET ELEMENT DATA] Pallet mismatch for '%s': UI=%s DB=%s",
+            element_desc,
+            pallet_number,
+            data["PALLETNUMBER"],
+        )
+        return None
+
+    if box_number and (
+        _safe_str(box_number).upper()
+        != data["BOXSEQUENCE"].upper()
+    ):
+        logger.warning(
+            "[GET ELEMENT DATA] Box mismatch for '%s': UI=%s DB=%s",
+            element_desc,
+            box_number,
+            data["BOXSEQUENCE"],
+        )
+        return None
+
+    return data
+
+
+def move_txt_files_automatically():
+    """
+    Automatic production mover.
+
+    Uses the last scope selected by the UI:
+      Order + Demand + Pallet + Box + exact folder_structure.
+
+    Then, for each source TXT:
+      filename stem -> ELEMENTDESC
+      ELEMENTDESC + 4 scope values -> DB lookup
+      successful match -> move to the exact saved folder.
+    """
+    source_path = Path(SOURCE_DIR)
+    destination_base = Path(DESTINATION_BASE)
+
+    logger.info("[AUTO MOVE] SOURCE: %s", source_path)
+    logger.info("[AUTO MOVE] DESTINATION BASE: %s", destination_base)
+
+    if not source_path.is_dir():
+        logger.error("[AUTO MOVE] ❌ SOURCE_DIR does not exist.")
+        return {
+            "status": "error",
+            "found": 0,
+            "moved": 0,
+            "skipped": 0,
+            "failed": 0,
+        }
+
+    context = load_monitor_context()
+
+    if not context:
+        logger.error(
+            "[AUTO MOVE] ❌ NO ACTIVE CONTEXT. "
+            "Open the UI and execute the request that builds the folder "
+            "path first."
+        )
+        return {
+            "status": "waiting_context",
+            "found": 0,
+            "moved": 0,
+            "skipped": 0,
+            "failed": 0,
+        }
+
+    order = context["production_order_code"]
+    demand = context["production_demand_code"]
+    pallet = context["pallet_number"]
+    box = context["box_number"]
+    folder_structure = context["folder_structure"]
+
+    logger.info(
+        "[AUTO MOVE] ACTIVE SCOPE -> Order=%s | Demand=%s | Pallet=%s | Box=%s",
+        order,
+        demand,
+        pallet,
+        box,
+    )
+    logger.info(
+        "[AUTO MOVE] EXACT DESTINATION -> %s",
+        destination_base / folder_structure,
+    )
+
+    # Exact folder path from UI.
+    destination_folder = destination_base / folder_structure
+
     try:
-        production_order_code = request.POST.get('production_order_code', '').strip()
-        production_demand_code = request.POST.get('production_demand_code', '').strip()
-        pallet_number = request.POST.get('pallet_number', '1').strip()
-        box_number = request.POST.get('box_number', '1').strip()
-        specific_file = request.POST.get('file_name', '').strip()
-        
-        logger.info(f"[MOVE ENDPOINT] Order: {production_order_code}, Demand: {production_demand_code}")
-        logger.info(f"[MOVE ENDPOINT] Pallet: {pallet_number}, Box: {box_number}")
-        
-        if not production_order_code or not production_demand_code:
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Order code and Demand code are required'
-            }, status=400)
-        
-        if specific_file:
-            source_path = Path(SOURCE_DIR) / f"{specific_file}.txt"
-            if not source_path.exists():
-                return JsonResponse({
-                    'status': 'error',
-                    'message': f'File not found: {specific_file}.txt'
-                }, status=404)
-            
-            folder_path = build_folder_path_from_ui(
-                production_order_code,
-                production_demand_code,
-                pallet_number,
-                box_number
-            )
-            
-            if not folder_path:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Could not build folder path'
-                }, status=400)
-            
-            dest_base = Path(DESTINATION_BASE)
-            dest_folder = dest_base / folder_path
-            dest_file_path = dest_folder / f"{specific_file}.txt"
-            
-            dest_folder.mkdir(parents=True, exist_ok=True)
-            
-            if dest_file_path.exists():
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                new_name = f"{specific_file}_{timestamp}.txt"
-                dest_file_path = dest_folder / new_name
-            
-            shutil.move(str(source_path), str(dest_file_path))
-            
-            return JsonResponse({
-                'status': 'success',
-                'message': f'File moved successfully',
-                'source': str(source_path),
-                'destination': str(dest_file_path),
-                'folder': str(folder_path)
-            })
-        else:
-            success = move_txt_files(
-                production_order_code,
-                production_demand_code,
-                pallet_number,
-                box_number
-            )
-            return JsonResponse({
-                'status': 'success' if success else 'error',
-                'message': 'File move operation completed'
-            })
-            
-    except Exception as e:
-        logger.error(f"Error in move_txt_files_endpoint: {str(e)}")
-        return JsonResponse({
-            'status': 'error',
-            'message': f"Server error: {str(e)}"
-        }, status=500)
+        destination_folder.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        logger.exception(
+            "[AUTO MOVE] ❌ Cannot create destination folder: %s",
+            destination_folder,
+        )
+        return {
+            "status": "error",
+            "found": 0,
+            "moved": 0,
+            "skipped": 0,
+            "failed": 1,
+        }
 
+    txt_files = [
+        file_path
+        for file_path in source_path.iterdir()
+        if file_path.is_file() and file_path.suffix.lower() == ".txt"
+    ]
 
-# ====================================================================
-# 8. SCHEDULER JOB FUNCTION
-# ====================================================================
+    logger.info(
+        "[AUTO MOVE] Found %d TXT file(s).",
+        len(txt_files),
+    )
 
-def check_and_process_txt_files():
-    try:
-        logger.info("[FILE_MONITOR] 🔍 Checking for txt files...")
-        success = move_txt_files()
-        if success:
-            logger.info("[FILE_MONITOR] ✅ File processing completed successfully")
-        else:
-            logger.warning("[FILE_MONITOR] ⚠️ File processing completed with issues")
-        return success
-    except Exception as e:
-        logger.error(f"[FILE_MONITOR] Error: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return False
+    moved_count = 0
+    skipped_count = 0
+    failed_count = 0
 
+    for source_file in txt_files:
+        element_desc = source_file.stem.strip()
 
-# ====================================================================
-# 9. SCHEDULER MANAGEMENT ENDPOINTS
-# ====================================================================
+        logger.info("-" * 80)
+        logger.info("[AUTO MOVE] 📄 Processing %s", source_file.name)
+        logger.info("[AUTO MOVE] ELEMENTDESC = %s", element_desc)
 
-@csrf_exempt
-@require_GET
-def scheduler_status(request):
-    try:
-        from .scheduler import get_scheduler_status
-        status = get_scheduler_status()
-        return JsonResponse({
-            'status': 'success',
-            'scheduler': status
-        })
-    except Exception as e:
-        return JsonResponse({
-            'status': 'error',
-            'message': str(e)
-        }, status=500)
-
-
-@csrf_exempt
-@require_POST
-def trigger_file_check_now(request):
-    try:
-        from .scheduler import check_and_process_txt_files
-        check_and_process_txt_files()
-        return JsonResponse({
-            'status': 'success',
-            'message': 'File check triggered successfully'
-        })
-    except Exception as e:
-        logger.error(f"[MANUAL CHECK ERROR] {str(e)}")
-        return JsonResponse({
-            'status': 'error',
-            'message': str(e)
-        }, status=500)
-
-
-@csrf_exempt
-@require_POST
-def update_check_interval(request):
-    try:
-        from .scheduler import _scheduler
-        
-        interval = request.POST.get('interval', '5').strip()
-        
         try:
-            interval = int(interval)
-            if interval < 1:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Interval must be at least 1 minute'
-                }, status=400)
-        except ValueError:
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Interval must be a valid integer'
-            }, status=400)
-        
-        if not _scheduler or not _scheduler.running:
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Scheduler is not running'
-            }, status=500)
-        
-        _scheduler.reschedule_job('txt_file_monitor', trigger='interval', minutes=interval)
-        
-        return JsonResponse({
-            'status': 'success',
-            'message': f'Check interval updated to {interval} minute(s)',
-            'new_interval': interval
-        })
-        
-    except Exception as e:
-        logger.error(f"[INTERVAL UPDATE ERROR] {str(e)}")
-        return JsonResponse({
-            'status': 'error',
-            'message': str(e)
-        }, status=500)
+            db_data = find_element_context_from_db(
+                element_desc=element_desc,
+                production_order_code=order,
+                production_demand_code=demand,
+                pallet_number=pallet,
+                box_number=box,
+            )
+
+            if not db_data:
+                skipped_count += 1
+                logger.warning(
+                    "[AUTO MOVE] ⏭️ DB match not found in exact scope. "
+                    "File stays in source: %s",
+                    source_file.name,
+                )
+                continue
+
+            # Defensive scope check.
+            if (
+                db_data["PRODUCTIONORDERCODE"].upper() != order.upper()
+                or db_data["PRODUCTIONDEMANDCODE"].upper() != demand.upper()
+                or db_data["PALLETNUMBER"].upper() != pallet.upper()
+                or db_data["BOXSEQUENCE"].upper() != box.upper()
+            ):
+                failed_count += 1
+                logger.error(
+                    "[AUTO MOVE] ❌ DB scope mismatch. File stays in source."
+                )
+                continue
+
+            destination_file = destination_folder / source_file.name
+
+            if destination_file.exists():
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                destination_file = (
+                    destination_folder
+                    / f"{source_file.stem}_{timestamp}{source_file.suffix}"
+                )
+
+            shutil.move(
+                str(source_file),
+                str(destination_file),
+            )
+
+            moved_count += 1
+
+            logger.info(
+                "[AUTO MOVE] ✅ MOVED: %s",
+                destination_file,
+            )
+
+        except PermissionError:
+            failed_count += 1
+            logger.exception(
+                "[AUTO MOVE] ❌ Permission error: %s",
+                source_file.name,
+            )
+
+        except OSError:
+            failed_count += 1
+            logger.exception(
+                "[AUTO MOVE] ❌ File system error: %s",
+                source_file.name,
+            )
+
+        except Exception:
+            failed_count += 1
+            logger.exception(
+                "[AUTO MOVE] ❌ Unexpected error: %s",
+                source_file.name,
+            )
+
+    logger.info("=" * 80)
+    logger.info(
+        "[AUTO MOVE] FINAL -> Found=%s Moved=%s Skipped=%s Failed=%s",
+        len(txt_files),
+        moved_count,
+        skipped_count,
+        failed_count,
+    )
+    logger.info("=" * 80)
+
+    return {
+        "status": "success" if failed_count == 0 else "partial",
+        "found": len(txt_files),
+        "moved": moved_count,
+        "skipped": skipped_count,
+        "failed": failed_count,
+    }
+
+
+
+def monitor_and_move_files(
+    production_order_code=None,
+    production_demand_code=None,
+    pallet_number=None,
+    box_number=None,
+):
+    """
+    Automatic monitor entry point.
+
+    The arguments are retained for backward compatibility with the UI.
+    Automatic processing ignores them and derives the complete context
+    from each TXT filename -> DB lookup.
+    """
+    return move_txt_files_automatically()
+
+
+
+@require_GET
+def automatic_file_monitor_status(request):
+    """Simple debug endpoint showing source/destination configuration."""
+    source = Path(SOURCE_DIR)
+    destination = Path(DESTINATION_BASE)
+
+    txt_files = []
+    if source.is_dir():
+        txt_files = [p.name for p in source.iterdir()
+                     if p.is_file() and p.suffix.lower() == ".txt"]
+
+    return JsonResponse({
+        "status": "ok",
+        "source_dir": str(source),
+        "source_exists": source.is_dir(),
+        "destination_base": str(destination),
+        "destination_exists": destination.is_dir(),
+        "pending_txt_files": txt_files,
+    })
 
 
 # ====================================================================
@@ -1145,7 +1527,7 @@ def upload_element_image(request):
             if not folder_structure:
                 return JsonResponse({'status': 'error', 'message': 'Could not build folder path'}, status=400)
 
-            image_bytes = base64.b64decode(image_data)
+            image_bytes = _decode_base64_image(image_data)
 
             if is_human_image:
                 network_base = r"\\192.168.4.32\Corekit"

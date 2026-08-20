@@ -18,9 +18,9 @@ urlpatterns = [
     ),
     
     # Scheduler management endpoints
-    path('api/scheduler/status/', views.scheduler_status, name='scheduler_status'),
-    path('api/scheduler/trigger-check/', views.trigger_file_check_now, name='trigger_file_check'),
-    path('api/scheduler/update-interval/', views.update_check_interval, name='update_check_interval'),
+    # # path('api/scheduler/status/', views.scheduler_status, name='scheduler_status'),
+    # path('api/scheduler/trigger-check/', views.trigger_file_check_now, name='trigger_file_check'),
+    # path('api/scheduler/update-interval/', views.update_check_interval, name='update_check_interval'),
     
     # path('api/upload-ply-file/', views.upload_ply_file, name='upload_ply_file'),
     # path('api/ply-files-status/', views.get_ply_files_status, name='ply_files_status'),

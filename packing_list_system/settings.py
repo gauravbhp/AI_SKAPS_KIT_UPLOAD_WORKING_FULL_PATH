@@ -32,7 +32,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'packing_system',
+    # 'packing_system',
+    "packing_system.apps.PackingSystemConfig",
     'django_extensions',
 ]
 
