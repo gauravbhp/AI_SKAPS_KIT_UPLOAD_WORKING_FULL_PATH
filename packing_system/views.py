@@ -1258,6 +1258,108 @@ def get_element_data_from_db(
     return data
 
 
+
+def find_matching_proof_image(source_file):
+    """
+    Find the proof image produced by the Extraction Image_BOT.
+
+    Expected JPG/JPEG naming example:
+        Extraction Image_BOT - 20-Aug-2026_09-37 PM-64e7.jpg
+
+    IMPORTANT:
+    - No database lookup is performed.
+    - The image is identified by the Extraction Image_BOT filename pattern.
+    - The newest matching image is selected.
+    """
+    source_file = Path(source_file)
+    candidates = []
+
+    for candidate in source_file.parent.iterdir():
+        if not candidate.is_file():
+            continue
+
+        if candidate.suffix.casefold() not in {".jpg", ".jpeg"}:
+            continue
+
+        if not candidate.name.casefold().startswith(
+            "extraction image_bot - "
+        ):
+            continue
+
+        try:
+            candidates.append(candidate)
+        except OSError:
+            continue
+
+    if not candidates:
+        logger.info(
+            "[PROOF JPG] No Extraction Image_BOT JPG/JPEG found."
+        )
+        return None
+
+    # Most recently modified Extraction Image_BOT image.
+    candidates.sort(
+        key=lambda path: path.stat().st_mtime,
+        reverse=True
+    )
+
+    selected = candidates[0]
+
+    logger.info(
+        "[PROOF JPG] Selected proof image: %s",
+        selected.name,
+    )
+
+    return selected
+
+
+def move_proof_image_to_destination(source_image, destination_folder):
+    """
+    Move the Extraction Image_BOT JPG/JPEG to the same destination
+    folder as its successfully validated TXT.
+    No DB lookup is performed.
+    """
+    if source_image is None:
+        logger.info(
+            "[PROOF JPG] No matching JPG/JPEG found. Continuing TXT move."
+        )
+        return None
+
+    destination_folder = Path(destination_folder)
+    destination_file = destination_folder / source_image.name
+
+    # Avoid overwriting an existing proof image.
+    if destination_file.exists():
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        destination_file = (
+            destination_folder
+            / f"{source_image.stem}_{timestamp}{source_image.suffix}"
+        )
+
+    try:
+        shutil.move(
+            str(source_image),
+            str(destination_file),
+        )
+
+        logger.info(
+            "[PROOF JPG] ✅ MOVED -> %s",
+            destination_file,
+        )
+
+        return destination_file
+
+    except Exception as exc:
+        # TXT is already safely moved. Do not fail the TXT because
+        # the proof image has a separate file-system problem.
+        logger.exception(
+            "[PROOF JPG] ❌ Could not move proof image %s: %s",
+            source_image.name,
+            exc,
+        )
+        return None
+
+
 def move_txt_files_automatically():
     """
     Automatic production mover.
@@ -1400,6 +1502,9 @@ def move_txt_files_automatically():
                     / f"{source_file.stem}_{timestamp}{source_file.suffix}"
                 )
 
+            # --------------------------------------------------------
+            # 1. Move TXT after successful scoped DB validation.
+            # --------------------------------------------------------
             shutil.move(
                 str(source_file),
                 str(destination_file),
@@ -1408,9 +1513,30 @@ def move_txt_files_automatically():
             moved_count += 1
 
             logger.info(
-                "[AUTO MOVE] ✅ MOVED: %s",
+                "[AUTO MOVE] ✅ TXT MOVED: %s",
                 destination_file,
             )
+
+            # --------------------------------------------------------
+            # 2. Move matching JPG/JPEG proof.
+            #
+            # IMPORTANT:
+            # - No DB lookup for JPG/JPEG.
+            # - JPG is identified only by the same filename stem.
+            # - JPG goes to the exact same destination folder.
+            # --------------------------------------------------------
+            proof_image = find_matching_proof_image(source_file)
+
+            if proof_image:
+                move_proof_image_to_destination(
+                    proof_image,
+                    destination_folder,
+                )
+            else:
+                logger.info(
+                    "[PROOF JPG] No proof image for %s",
+                    source_file.name,
+                )
 
         except PermissionError:
             failed_count += 1
@@ -1435,7 +1561,7 @@ def move_txt_files_automatically():
 
     logger.info("=" * 80)
     logger.info(
-        "[AUTO MOVE] FINAL -> Found=%s Moved=%s Skipped=%s Failed=%s",
+        "[AUTO MOVE] FINAL -> Found=%s TXT-Moved=%s Skipped=%s Failed=%s",
         len(txt_files),
         moved_count,
         skipped_count,
